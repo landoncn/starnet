@@ -20,6 +20,8 @@ sidecar/workspaces.*/
 # preview/verify sidecar workspaces (per-worktree launch.json SKYNET_WORKSPACES)
 .verify-workspaces/
 .dev-workspaces*/
+# Tower Alfred uses a separate workspace root so it cannot read or overwrite a StarNet save.
+.tower-alfred/
 
 # dev seed launcher: local secrets + the throwaway seeded workspace it materializes
 dev/.env.dev

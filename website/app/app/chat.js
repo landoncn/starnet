@@ -2601,9 +2601,21 @@ const Chat = (() => {
       b.onclick = () => decide(decision, doneLabel, isDeny);
       btns.appendChild(b); return b;
     };
+    // Tower Alfred renders the exact choices supplied by Hermes ACP. It never invents StarNet's broader
+    // "Full access" grade or translates it into a persistent Hermes grant behind the Commander's back.
+    const acpOptions = (typeof window !== 'undefined' && window.__TOWER_ALFRED__ && Array.isArray(p.options))
+      ? p.options.filter(option => option && option.optionId)
+      : [];
+    if (acpOptions.length) {
+      for (const option of acpOptions) {
+        const kind = String(option.kind || '');
+        const deny = /^reject/.test(kind);
+        const label = String(option.name || option.optionId);
+        mk(label, String(option.optionId), deny ? 'deny' : '', (deny ? '✕ ' : '✓ ') + label.toLowerCase(), deny);
+      }
     // ATTENDED BROWSER LOGIN cards get purpose-built buttons: "Always"/"Full access" make no sense for a
     // one-shot window open, and the done-wait card is a completion signal, not a permission grade.
-    if (p.tool === 'browser.login') {
+    } else if (p.tool === 'browser.login') {
       mk('Open login window', 'once', '', '✓ window opened', false);
       mk('Deny', 'deny', 'deny', '✕ denied', true);
     } else if (p.tool === 'browser.login.done') {
@@ -8019,7 +8031,7 @@ const Chat = (() => {
         // a background stream fires the global clickable toast + rail marker (backgroundPermissionNotify). Both
         // paths then ACK the sidecar (consentAck) that the prompt is human-visible, earning the paused run its
         // one bounded extension of the fail-closed auto-deny timer.
-        onPermission: ev => { Channels.setPending(ws.id, { promptId: ev.promptId, agentId: ev.agentId || ws.agentId, tool: ev.tool, argsSummary: ev.argsSummary, runId: Channels.runIdOf(ws.id) }, Date.now()); walkToDesk(); if (isActiveWs(ws)) { breakLive(); permissionRow(ev, ws); renderPresence(); } else { backgroundPermissionNotify(ev, ws); } try { Harness.consentAck(Channels.runIdOf(ws.id), ev.promptId); } catch (_) {} },
+        onPermission: ev => { Channels.setPending(ws.id, { promptId: ev.promptId, agentId: ev.agentId || ws.agentId, tool: ev.tool, argsSummary: ev.argsSummary, options: ev.options, runId: Channels.runIdOf(ws.id) }, Date.now()); walkToDesk(); if (isActiveWs(ws)) { breakLive(); permissionRow(ev, ws); renderPresence(); } else { backgroundPermissionNotify(ev, ws); } try { Harness.consentAck(Channels.runIdOf(ws.id), ev.promptId); } catch (_) {} },
         // the lead's team.summon tool asked the station to create a worker: run the REAL summon (App.summonForRequest
         // → the Recruitment Bay's own summonAgent), then ack with the new id so the lead can delegate to it. The id
         // resolves only after the roster POST lands (App awaits it), so the lead's next team.dispatch finds the worker.

@@ -10,6 +10,7 @@ const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
 function startProvider() {
+  const printFile = process.platform === 'win32' ? 'type ' : 'cat ';
   return new Promise(resolve => {
     const requests = [];
     const server = http.createServer((req, res) => {
@@ -31,9 +32,9 @@ function startProvider() {
         } else if (toolResults.length === 1) {
           call = { id: 'mutate_1', name: 'fs_write', args: { path: 'mutation-receipt.txt', content: 'MUTATION_OK\n' } };
         } else if (toolResults.length === 2) {
-          call = { id: 'flood_1', name: 'shell_exec', args: { cmd: 'type flood-a.txt' } };
+          call = { id: 'flood_1', name: 'shell_exec', args: { cmd: printFile + 'flood-a.txt' } };
         } else if (toolResults.length === 3) {
-          call = { id: 'flood_2', name: 'shell_exec', args: { cmd: 'type flood-b.txt' } };
+          call = { id: 'flood_2', name: 'shell_exec', args: { cmd: printFile + 'flood-b.txt' } };
         } else if (toolResults.length === 4) {
           call = { id: 'check_1', name: 'shell_exec', args: { cmd: 'node -e "console.log(\'CHECK_OK\')"' } };
         } else {

@@ -8359,7 +8359,58 @@ async function handleExecutionCleanup(req, res) {
   } catch (e) { return sendExecutionJson(res, 502, { ok: false, error: String((e && e.message) || e) }); }
 }
 
+/* ---- TOWER ALFRED: optional Hermes ACP authority boundary -----------------
+   Disabled unless the dedicated launcher sets TOWER_ALFRED=1. The ESM bridge is
+   loaded lazily so ordinary StarNet startup, packaging, and provider behavior
+   remain byte-for-byte on their existing path. */
+const TOWER_ALFRED_MODE = process.env.TOWER_ALFRED === '1';
+let towerAlfredService = null;
+let towerAlfredHandlersPromise = null;
+function getTowerAlfredHandlers() {
+  if (!TOWER_ALFRED_MODE) return Promise.resolve(null);
+  if (!towerAlfredHandlersPromise) {
+    towerAlfredHandlersPromise = Promise.all([
+      import('./tower-alfred/http-handlers.mjs'),
+      import('./tower-alfred/service.mjs')
+    ]).then(([httpMod, serviceMod]) => {
+      towerAlfredService = serviceMod.createTowerAlfredService({
+        profile: process.env.TOWER_ALFRED_PROFILE || 'default',
+        hermesCommand: process.env.TOWER_ALFRED_HERMES_COMMAND || 'hermes',
+        productName: process.env.TOWER_ALFRED_PRODUCT || 'Tower Alfred',
+        supervisorName: process.env.TOWER_ALFRED_NAME || 'ALFRED',
+        cwd: process.cwd()
+      });
+      return httpMod.createTowerAlfredHttpHandlers({ service: towerAlfredService, readBody });
+    });
+  }
+  return towerAlfredHandlersPromise;
+}
+function towerAlfredUnavailable(res) {
+  res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  return res.end(JSON.stringify({ ok: false, error: 'Tower Alfred mode is not enabled' }));
+}
+async function handleTowerAlfredStatus(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.status(req, res) : towerAlfredUnavailable(res);
+}
+async function handleTowerAlfredRun(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.run(req, res) : towerAlfredUnavailable(res);
+}
+async function handleTowerAlfredConsent(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.consent(req, res) : towerAlfredUnavailable(res);
+}
+async function handleTowerAlfredCancel(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.cancel(req, res) : towerAlfredUnavailable(res);
+}
+
 const ROUTES = [
+  { m: 'GET', exact: '/api/tower/status', h: handleTowerAlfredStatus },
+  { m: 'POST', exact: '/api/tower/run', h: handleTowerAlfredRun },
+  { m: 'POST', exact: '/api/tower/consent', h: handleTowerAlfredConsent },
+  { m: 'POST', exact: '/api/tower/cancel', h: handleTowerAlfredCancel },
   { m: 'POST', exact: '/api/update/prepare', h: handleUpdatePrepare },
   { m: 'POST', exact: '/api/update/cancel', h: handleUpdateCancel },
   { m: 'GET', exact: '/api/update/status', h: handleUpdateStatus },
@@ -8949,7 +9000,10 @@ function gracefulShutdown(signal) {
   // release any cursor confinement a reaped child leaves stuck (the PS one-shot outlives our exit; best-effort —
   // the boot-time ensureFree is the reliable cover for the force-kill path this handler can't see at all)
   try { if (typeof inputGuard !== 'undefined' && inputGuard) inputGuard.observe('shutdown').catch(() => {}); } catch (_) {}
-  try { if (typeof executionEnvironment !== 'undefined' && executionEnvironment && executionEnvironment.killAllBackground) executionEnvironment.killAllBackground(); } catch (_) {}
+  try {
+    if (typeof executionEnvironment !== 'undefined' && executionEnvironment && executionEnvironment.killAllBackground)
+      Promise.resolve(executionEnvironment.killAllBackground()).catch(swallow('execution.shutdown'));
+  } catch (e) { failNote('execution.shutdown.sync', e); }
   try { if (typeof lspManager !== 'undefined' && lspManager && lspManager.closeAll) Promise.resolve(lspManager.closeAll()).catch(() => {}); } catch (_) {}   // reap detected language-server children
   try { if (typeof subagents !== 'undefined' && subagents && subagents.interruptAll) subagents.interruptAll(); } catch (_) {}   // stop watchable background workers
   try { if (typeof connectors !== 'undefined' && connectors && connectors.close) Promise.resolve(connectors.close()).catch(() => {}); } catch (_) {}   // close MCP connectors (stdio children get taskkill/SIGTERM)
@@ -8957,6 +9011,11 @@ function gracefulShutdown(signal) {
   try { stopAllTelegramBots(); } catch (_) {}   // …and every agent-bound bot's poller
   try { stopDiscord(); } catch (_) {}    // disconnect the Discord gateway socket
   try { for (const ac of runs.values()) { try { ac.abort(); } catch (_) {} } } catch (_) {}   // abort any in-flight run so it stops spending
+  let towerStop = Promise.resolve();
+  try {
+    if (towerAlfredService && towerAlfredService.stop)
+      towerStop = Promise.resolve(towerAlfredService.stop()).catch(swallow('tower-alfred.stop'));
+  } catch (e) { failNote('tower-alfred.stop.sync', e); } // the exit path below waits for owned ACP children
   try { if (typeof cronLock !== 'undefined' && cronLock && cronLock.release) cronLock.release(); } catch (_) {}   // drop cron.lock so the next boot's tick isn't wedged
   try { workspaceOwner.release(); } catch (_) {}   // drop the process-wide WORKSPACES owner claim on catchable shutdown
   // BROWSER/CDP: the per-run browser session is created fresh per run and not retained at module scope (see the
@@ -8965,11 +9024,14 @@ function gracefulShutdown(signal) {
   // to the user. (If a module-level browser-session registry is added later, close it here.)
   try {
     if (typeof server !== 'undefined' && server && server.close) {
-      server.close(() => { clearTimeout(deadline); process.exit(0); });   // stop accepting; exit once connections drain
+      server.close(() => { towerStop.finally(() => { clearTimeout(deadline); process.exit(0); }); });   // stop accepting; reap Tower ACP; then exit
       // don't wait on lingering keep-alive sockets — force them closed so close()'s callback fires promptly.
       if (typeof server.closeAllConnections === 'function') { try { server.closeAllConnections(); } catch (_) {} }
-    } else { clearTimeout(deadline); process.exit(0); }
-  } catch (_) { clearTimeout(deadline); process.exit(0); }
+    } else { towerStop.finally(() => { clearTimeout(deadline); process.exit(0); }); }
+  } catch (e) {
+    failNote('shutdown.server-close', e);
+    towerStop.finally(() => { clearTimeout(deadline); process.exit(0); });
+  }
 }
 // Only install signal handlers for a real host process (not when index.js is require()'d by a unit test, which
 // would leak handlers across tests). The e2e harnesses spawn a REAL node process and stop it with child.kill()
@@ -17250,6 +17312,13 @@ function handleHalt(req, res) {
   // that really spend, so an E-STOP that skipped them would leave live work the panel says it stopped.
   const devInflight = (devHub && devHub._internals) ? devHub._internals.inflight : null;
   const halted = killAll(runs, tgInflight, dcInflight, ...genericInflights, ...tgBotInflights, devInflight);   // browser runs + ALL channel hub runs, in one kill (see sidecar/halt.js)
+  // Tower owns a separate Hermes ACP run map, so the station-wide E-STOP must explicitly
+  // cancel every active Tower run too. Initiate cancellation before reporting success and
+  // observe transport failures without allowing one ACP session to block the other stops.
+  if (towerAlfredService) {
+    try { Promise.resolve(towerAlfredService.cancel({})).catch(swallow('tower-alfred.halt')); }
+    catch (e) { failNote('tower-alfred.halt.sync', e); }
+  }
   let cronAborted = 0;
   try { cronAborted = cronDriver.abortAllLeases(); } catch (_) {}   // Phase 0: E-STOP also aborts in-flight cron runs (unattended spend)
   let beatAborted = 0;
@@ -17293,7 +17362,9 @@ function handleHalt(req, res) {
   let loopsHaltPersisted = true;
   try { saveLoopsHalted(true); }
   catch (e) { loopsHaltPersisted = false; console.warn('[loops] halt persist failed:', (e && e.message) || e); }
-  try { executionEnvironment.killAllBackground(); } catch (_) {}   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes
+  try {
+    Promise.resolve(executionEnvironment.killAllBackground()).catch(swallow('execution.halt'));
+  } catch (e) { failNote('execution.halt.sync', e); }   // H2.2/Phase 0: E-STOP also reaps backend-owned background processes
   let terminalStops = 0;
   try { terminalStops = terminalSessions.stopAll(); } catch (_) {}  // E-STOP covers interactive terminal trees too
   try { inputGuard.observe('halt').catch(() => {}); } catch (_) {}   // diagnostic only: never release an unowned global clip
@@ -19443,6 +19514,16 @@ async function serveStatic(req, res) {
       // runtime key for `prov`, so a seeded station with no key at all still rendered "● KEY SAVED". Say
       // whether one actually exists — still no secret crosses, only the boolean.
       if (DEV_MODE) boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: CRON_DEFAULT_MODEL || '', prov: (!runtimeKey && codexTokens && codexTokens.access_token) ? 'codex' : 'openrouter', hasKey: !!runtimeKey }) + ';';
+      if (TOWER_ALFRED_MODE) {
+        const towerBoot = {
+          enabled: true,
+          productName: process.env.TOWER_ALFRED_PRODUCT || 'Tower Alfred',
+          supervisor: process.env.TOWER_ALFRED_NAME || 'ALFRED',
+          role: process.env.TOWER_ALFRED_ROLE || 'Supervisory Intelligence',
+          profile: process.env.TOWER_ALFRED_PROFILE || 'default'
+        };
+        boot += 'window.__TOWER_ALFRED_BOOT__=' + JSON.stringify(towerBoot).replace(/</g, '\\u003c') + ';';
+      }
       boot += '</script>';
       data = Buffer.from(String(data).replace(/<\/head>/i, boot + '\n</head>'), 'utf8');
     }

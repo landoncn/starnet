@@ -4759,6 +4759,35 @@ const App = (() => {
     show('screen-lineage');
   }
 
+  function towerAlfredInitialSave() {
+    const now = Date.now();
+    const tower = window.__TOWER_ALFRED__ || { supervisor: 'ALFRED', role: 'Supervisory Intelligence', profile: 'default' };
+    return {
+      agent: {
+        id: 'agent',
+        name: tower.supervisor || 'ALFRED',
+        role: 'orchestrator',
+        color: ORCH_COLOR,
+        skin: (typeof DATA !== 'undefined' && DATA.DEFAULT_SKIN) || 'bear',
+        model: 'hermes/' + (tower.profile || 'default'),
+        provider: 'hermes',
+        reasoningEffort: 'medium',
+        personaId: (typeof Personas !== 'undefined' && Personas.DEFAULT_ID) || 'professional',
+        voiceTraits: {},
+        customVoice: '',
+        approvalMode: 'ask',
+        executionProfile: 'trusted-project',
+        purpose: tower.role || 'Supervisory Intelligence',
+        onboarded: true,
+        createdAt: now
+      },
+      prov: 'hermes',
+      reasoningEffort: 'medium',
+      usage: { tokens: 0, cost: 0, calls: 0 },
+      updatedAt: now
+    };
+  }
+
   /* ---------- boot ---------- */
   async function init() {
     if (Harness.init) await Harness.init();   // desktop: load the keychain "configured?" flag first
@@ -4891,6 +4920,12 @@ const App = (() => {
     const lineage = (typeof CloudSave !== 'undefined' && CloudSave.lineage) ? CloudSave.lineage() : null;
     if (lineage && lineage.priorInstallEvidence === true) {
       showPriorStateGate(lineage); return;
+    }
+    // TOWER ALFRED owns the supervisor identity in configuration: a genuinely empty Tower workspace
+    // enters the station with ALFRED already at the head. This object is visual/persistence metadata only;
+    // every response, memory, skill, tool, and permission still comes from Hermes ACP.
+    if (typeof window !== 'undefined' && window.__TOWER_ALFRED__) {
+      resumeInto(towerAlfredInitialSave()); return;
     }
     // FIRST RUN (no save) — the key-art boot splash, then PRESS ANY KEY → CREATE YOUR OVERSEER.
     showSplash();

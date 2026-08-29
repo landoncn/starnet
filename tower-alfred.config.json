@@ -1,0 +1,24 @@
+{
+  "product": {
+    "name": "Tower Alfred",
+    "shortName": "TOWER ALFRED",
+    "commanderTitle": "Master Nesbitt"
+  },
+  "hermes": {
+    "profile": "default",
+    "command": "hermes"
+  },
+  "supervisor": {
+    "id": "alfred",
+    "name": "ALFRED",
+    "role": "Supervisory Intelligence"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8791,
+    "openBrowser": true
+  },
+  "storage": {
+    "workspaces": ".tower-alfred/workspaces"
+  }
+}

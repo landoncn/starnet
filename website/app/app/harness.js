@@ -155,6 +155,7 @@ const Harness = (() => {
   // origin (a new worktree port) auto-resumes the server-seeded save with no connect screen / awakening.
   const DEV = (typeof window !== 'undefined' && window.__STARNET_DEV__ && typeof window.__STARNET_DEV__ === 'object') ? window.__STARNET_DEV__ : null;
   const DEVMODE = !!DEV;
+  const TOWER_MODE = !!window.__TOWER_ALFRED__;
   if (DEVMODE) {
     try {
       if (DEV.model) localStorage.setItem('starnet.byok.model', String(DEV.model));
@@ -309,6 +310,7 @@ const Harness = (() => {
     if (p === 'cerebras') return 'cerebras';
     // managed credits — bearer is the linked device token (mirrors app.js + registry.js aliases)
     if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
+    if (p === 'hermes' || p === 'tower-alfred') return 'hermes';
     if (p === 'ollama' || p === 'ollama-local') return 'ollama';
     if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
     return 'openrouter';
@@ -340,6 +342,7 @@ const Harness = (() => {
     return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'starnet';
   }
   function configured(provider) {
+    if (TOWER_MODE) return true;
     const p = normalizeProviderId(provider);
     if (p === 'ollama') return true;
     if (p === 'custom' && getBaseUrl(p)) return true;
@@ -437,7 +440,7 @@ const Harness = (() => {
       .then(() => true)
       .catch(e => { console.warn('[harness] channel-token store failed:', (e && e.message) || e); return false; });
   }
-  const getModel = () => localStorage.getItem(LS.model) || '';
+  const getModel = () => TOWER_MODE ? 'hermes/default' : (localStorage.getItem(LS.model) || '');
   const setModel = m => {
     const prev = localStorage.getItem(LS.model) || '';
     localStorage.setItem(LS.model, m || '');
@@ -447,8 +450,8 @@ const Harness = (() => {
     // calibration that model already earned instead of going blind again.
     if ((m || '') !== prev) { contextByKey = {}; runConv = {}; }
   };
-  const getProv = () => normalizeProviderId(localStorage.getItem(LS.prov) || 'openrouter');
-  const setProv = p => localStorage.setItem(LS.prov, normalizeProviderId(p || 'openrouter'));
+  const getProv = () => TOWER_MODE ? 'hermes' : normalizeProviderId(localStorage.getItem(LS.prov) || 'openrouter');
+  const setProv = p => { if (!TOWER_MODE) localStorage.setItem(LS.prov, normalizeProviderId(p || 'openrouter')); };
   const getBaseUrl = provider => readScoped(LS.baseUrl, provider);
   const setBaseUrl = (u, provider) => {
     const p = normalizeProviderId(provider || getProv());
@@ -679,9 +682,8 @@ const Harness = (() => {
      onToken(delta) per text delta · onToolCall/onToolResult per tool step · onUsage per turn. */
   async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, projectRoot, taskAction, postconditions, recovery }) {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
-    // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
-    // sidecar's env (keychain). Neither needs a key sent from here.
-    if (providerNeedsKey(provider) && !DESKTOP && !DEVMODE && !key) throw new Error('no API key set');
+    // Tower mode delegates provider/auth/tool authority to the selected Hermes profile over ACP.
+    if (!TOWER_MODE && providerNeedsKey(provider) && !DESKTOP && !DEVMODE && !key) throw new Error('no API key set');
     if (!model) throw new Error('no model selected');
 
     let res;
@@ -725,7 +727,7 @@ const Harness = (() => {
       if (!DESKTOP && !DEVMODE) {
         try { const pool = JSON.parse(readScoped(LS.keyPool, provider) || '[]'); if (Array.isArray(pool) && pool.length) reqBody.keyPool = pool; } catch (_) {}
       }
-      res = await fetch('/api/run', {
+      res = await fetch(TOWER_MODE ? '/api/tower/run' : '/api/run', {
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reqBody)
@@ -844,7 +846,8 @@ const Harness = (() => {
 
   async function cancel(runId) {
     if (!runId) return;
-    try { await fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runId }) }); } catch (_) {}
+    const endpoint = TOWER_MODE ? '/api/tower/cancel' : '/api/cancel';
+    try { await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runId }) }); } catch (_) {}
   }
 
   // E-STOP: stop EVERY in-flight run on the sidecar in one call — browser runs AND any messaging-hub/Telegram
@@ -870,8 +873,9 @@ const Harness = (() => {
   // continues (or denies). Separate request from the open /api/run stream — no deadlock.
   async function consent(runId, promptId, decision) {
     if (!runId || !promptId) return { ok: false, decision: 'deny' };
+    const endpoint = TOWER_MODE ? '/api/tower/consent' : '/api/consent';
     try {
-      const r = await fetch('/api/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runId, promptId, decision }) });
+      const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ runId, promptId, decision }) });
       const j = await r.json().catch(() => null);
       return (j && typeof j === 'object') ? j : { ok: false, decision: 'deny' };
     } catch (_) { return { ok: false, decision: 'deny' }; }

@@ -64,6 +64,10 @@ router.execute({ agentId: 'safe', cmd: 'x' }).then(async result => {
   A.eq(router.describeAgent('safe').effectiveBackend, 'docker', 'per-agent runtime truth names Docker');
   A.eq(router.describe().routing.perAgent, true, 'station execution status exposes dynamic routing');
   A.eq(router.killAllBackground(), 3, 'station halt reaches every distinct backend');
+  const asyncBackend = fake('async');
+  asyncBackend.killAllBackground = () => Promise.resolve(2);
+  const asyncRouter = makeExecutionRouter({ environments: { local, async: asyncBackend }, defaultBackendId: 'local', profileForAgent: () => 'station-gear' });
+  A.eq(await asyncRouter.killAllBackground(), 3, 'station halt awaits asynchronous backend cleanup instead of orphaning its rejection');
 
   // ---- Lane C: a requested sandbox is honored or refused, never faked ----
   const noDocker = makeExecutionRouter({ environments: { local }, defaultBackendId: 'local', profileForAgent: agentId => profiles[agentId] || 'station-gear', env: {} });

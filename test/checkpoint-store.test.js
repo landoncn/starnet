@@ -25,7 +25,8 @@ function runGit(args, opts) {
 }
 
 (async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cp-'));
+  const canonicalTmp = fs.realpathSync(os.tmpdir());
+  const root = fs.mkdtempSync(path.join(canonicalTmp, 'sk-cp-'));
   const clock = makeClock(1700000000000);
   const store = makeCheckpointStore({ fs, pathMod: path, root, runGit, clock, keep: 5 });
   const aid = 'a1';
@@ -33,7 +34,7 @@ function runGit(args, opts) {
   fs.mkdirSync(wt, { recursive: true });
   const write = (rel, body) => fs.writeFileSync(path.join(wt, rel), body);
   const read = (rel) => fs.readFileSync(path.join(wt, rel), 'utf8');
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cp-project-'));
+  const project = fs.mkdtempSync(path.join(canonicalTmp, '«redacted:sk-…»'));
 
   try {
     // ---- 1. baseline snapshot of a non-empty workspace ----

@@ -688,3 +688,10 @@ test/failopen.test.js
 test/failopen-ratchet.test.js
 test/frontend-fetch-truth-ratchet.test.js
 test/loop-verdict.test.js
+test/tower-alfred-acp.test.mjs
+test/tower-alfred-launcher.test.mjs
+test/tower-alfred-service.test.mjs
+test/tower-alfred-sessions.test.mjs
+test/tower-alfred-http.test.mjs
+test/tower-alfred-wiring.test.js
+test/tower-alfred-frontend.test.js

@@ -1,3 +1,17 @@
+# Tower Alfred development branch
+
+Tower Alfred is a Hermes-backed visual command center built from this StarNet codebase. The operational local command is:
+
+```sh
+starnet alfred
+```
+
+ALFRED is the authoritative Hermes `default` profile—not an imported persona copy. See [Tower Alfred architecture, configuration, verification, and release boundaries](docs/TOWER_ALFRED.md).
+
+> This branch is operational for local development. It is not yet a public Tower Alfred binary release: upstream's separately reserved logo, sprites, station artwork, and other brand assets must be replaced before distribution. The upstream README is retained below for provenance and source-mode documentation.
+
+---
+
 <div align="center">
 
 <img src=".github/media/starnet-logo-glow.png" alt="StarNet" width="560">

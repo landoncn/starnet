@@ -919,7 +919,13 @@
         args.push('--headless=new', '--hide-scrollbars', '--mute-audio');
       }
       args.push('about:blank');
-      proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed });
+      // The hermetic test runner gives the sidecar a synthetic HOME. Chrome 152 on macOS starts under
+      // that scratch home but never exposes a usable CDP endpoint. The explicit --user-data-dir above
+      // remains the browser-isolation boundary; only the Chrome subprocess needs the native account home.
+      const chromeEnv = process.platform === 'darwin'
+        ? Object.assign({}, process.env, { HOME: OS.userInfo().homedir })
+        : process.env;
+      proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed, env: chromeEnv });
       procClosePromise = new Promise(resolve => {
         if (proc && proc.on) proc.on('close', () => { procExited = true; resolve(true); });
         else resolve(true);

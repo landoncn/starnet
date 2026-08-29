@@ -172,13 +172,19 @@ function makeExecutionRouter(deps) {
   function killAllBackground(agentId) {
     if (agentId != null) return callAgent('killAllBackground', agentId, []);
     let count = 0;
+    const pending = [];
     const seen = new Set();
     for (const env of Object.values(environments)) {
       if (!env || seen.has(env) || typeof env.killAllBackground !== 'function') continue;
       seen.add(env);
-      count += Number(env.killAllBackground()) || 0;
+      const result = env.killAllBackground();
+      if (result && typeof result.then === 'function') {
+        pending.push(Promise.resolve(result).then(value => { count += Number(value) || 0; }));
+      } else {
+        count += Number(result) || 0;
+      }
     }
-    return count;
+    return pending.length ? Promise.all(pending).then(() => count) : count;
   }
 
   const api = {

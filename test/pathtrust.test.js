@@ -10,7 +10,9 @@ const path = require('path');
 const os = require('os');
 const { makePathTrust } = require('../sidecar/pathtrust.js');
 
-const ROOT = path.join(os.tmpdir(), 'starnet-pathtrust-' + process.pid);
+// macOS exposes os.tmpdir() through /var while realpath canonicalizes it to /private/var.
+// Path-trust grants are contractually real paths, so make the fixture canonical before deriving roots.
+const ROOT = path.join(fs.realpathSync(os.tmpdir()), 'starnet-pathtrust-' + process.pid);
 
 async function rejects(promise, msg) { try { await promise; A.ok(false, msg + ' — did NOT reject'); } catch (e) { A.ok(true, msg); } }
 

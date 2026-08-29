@@ -101,7 +101,7 @@ async function until(B, headers, pred, label, ms) {
 /* a REAL throwaway git repo with a REAL check script. `check.js` exits non-zero until `fixed.txt` exists —
    so "make the check pass" is a genuine, machine-verifiable objective. */
 function makeRepo() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-loopproj-'));
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'sk-loopproj-'));
   fs.writeFileSync(path.join(root, 'check.js'),
     "const fs=require('fs');\nif(fs.existsSync(__dirname+'/fixed.txt')){console.log('1 passing');process.exit(0);}\nconsole.log('1 failing — fixed.txt is missing');process.exit(1);\n");
   fs.mkdirSync(path.join(root, 'test'));
@@ -118,7 +118,7 @@ function makeRepo() {
 
 (async () => {
   const mock = await startMock('I looked at the failure and tried something.');
-  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-loopchk-'));
+  const ws = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'sk-loopchk-'));
   const repo = makeRepo();
   const env = {
     SKYNET_WORKSPACES: ws, SKYNET_OPENROUTER_BASE: mock.base,

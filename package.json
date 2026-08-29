@@ -2,7 +2,10 @@
   "name": "starnet-harness",
   "version": "0.10.12",
   "private": true,
-  "description": "A local-first, gamified desktop harness for building and running real AI-agent teams.",
+  "description": "Tower Alfred: a local-first visual command center backed by Hermes Agent.",
+  "bin": {
+    "starnet": "bin/starnet.mjs"
+  },
   "license": "MIT",
   "author": "Andrew Sims",
   "repository": {
@@ -162,6 +165,7 @@
     "@tauri-apps/cli": "^2"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0",
     "@huggingface/transformers": "^4.2.0",
     "kokoro-js": "^1.2.1",
     "node-pty": "^1.1.0",

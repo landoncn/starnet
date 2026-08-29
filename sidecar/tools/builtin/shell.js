@@ -29,6 +29,9 @@
   function clip(s, n) { s = String(s == null ? '' : s); n = n || 200; return s.length > n ? s.slice(0, n) + '…' : s; }
   function clamp(n, lo, hi) { n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
   const WIN = (typeof process !== 'undefined' && process.platform) === 'win32';
+  const failNote = (typeof require === 'function')
+    ? require('../../failopen.js').note
+    : function (tag, error) { if (typeof console !== 'undefined' && console.warn) console.warn('[failopen] ' + tag + ':', error); };
   function unrestrictedHost(ctx) {
     ctx = ctx || {};
     return ctx.unrestrictedHost === true ||
@@ -632,6 +635,13 @@
         return;
       }
     }
+    // POSIX: the shell is spawned as its own process-group leader (detached:true below), so a negative
+    // PID targets only this owned command tree. Killing just /bin/sh leaves grandchildren such as `sleep`
+    // alive with stdout open, making timeout/abort wait for the original command duration.
+    if (!isWin && child.pid) {
+      try { process.kill(-child.pid, 'SIGKILL'); return; }
+      catch (e) { failNote('shell.kill.posix-group', e); }
+    }
     try { child.kill(); } catch (_) {}
     try {
       if (child.pid) process.kill(child.pid, 'SIGKILL');
@@ -681,7 +691,7 @@
       // opts.env is ADDITIVE and optional: omitted (every existing caller) the child inherits this process's
       // environment exactly as before. Commander-defined exec commands pass a sanitized copy, because the
       // sidecar's env holds provider keys and a user snippet has no business reading them.
-      const spawnOpts = { cwd: cwd, shell: true, windowsHide: true };
+      const spawnOpts = { cwd: cwd, shell: true, windowsHide: true, detached: !isWin };
       if (opts.env) spawnOpts.env = opts.env;
       try { child = spawn(cmd, spawnOpts); }
       catch (e) { return reject(new Error('could not start shell: ' + ((e && e.message) || e))); }

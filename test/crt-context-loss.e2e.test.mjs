@@ -6,7 +6,7 @@
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { findChrome, connectCDP, evalJS, collectDiagnostics, sleep } from '../scripts/lib/cdp.mjs';
 import { materializeSeedWorkspace, bootSeededSidecar, waitUp, waitDevReady } from '../scripts/lib/seed.mjs';
@@ -39,11 +39,17 @@ const cdpPort = await freePort();
 const appUrl = `http://127.0.0.1:${appPort}/`;
 materializeSeedWorkspace(workspace);
 const sidecar = bootSeededSidecar({ port: appPort, scratchDir: workspace });
+const chromeEnv = process.platform === 'darwin'
+  // run-test-list gives the test a scratch HOME to isolate StarNet data. Chrome 152 on macOS
+  // starts under that synthetic home but never answers Page.navigate; its explicit user-data-dir
+  // still isolates all browser state when only the native account home is restored here.
+  ? Object.assign({}, process.env, { HOME: userInfo().homedir })
+  : process.env;
 const chrome = spawn(findChrome(), [
   '--headless=new', '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio',
   '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
   `--remote-debugging-port=${cdpPort}`, '--window-size=1280,720', `--user-data-dir=${profile}`, 'about:blank'
-], { stdio: 'ignore' });
+], { stdio: 'ignore', env: chromeEnv });
 
 let cdp = null;
 try {

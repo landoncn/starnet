@@ -7,7 +7,7 @@ const path = require('path');
 const { makeProjectDiscovery } = require('../sidecar/project-discovery.js');
 
 (async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-project-discovery-'));
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'starnet-project-discovery-'));
   try {
     const shelf = path.join(root, 'Projects');
     const nodeProject = path.join(shelf, 'alpha');
