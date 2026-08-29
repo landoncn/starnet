@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "f731c86155982812072dfe6f2113424a55becbc4",
-    "pathSetSha256": "af41cc445f1988b0f7104c223d126e658b053dfdeaa50f456e90999400b61fdf",
+    "sourceCommit": "bcc856b996db3c08485bd965e689d664d2fc1698",
+    "pathSetSha256": "e6a9061db40a0dc1a4e915e6adf72a0d2833fd4318267c68aada5d6fbed6df44",
     "files": [
       {
         "path": "INSTALL.md",
@@ -807,6 +807,11 @@
         "sha256": "b89ae5d5c738a5970a3a9bd9ad0576cedb5b870eb001b0195dc19533f13a981e"
       },
       {
+        "path": "frontend/app/tower-studio.js",
+        "bytes": 11505,
+        "sha256": "6b6aea1dac293227407e7a178759fb6fe7552cfc0ce1c1ade7699a7521696885"
+      },
+      {
         "path": "frontend/app/trophies.js",
         "bytes": 4927,
         "sha256": "9a2bf2c77283bfa5126cf00252925d3fb76b04bb6bb0a696188675d31de4461f"
@@ -1038,8 +1043,8 @@
       },
       {
         "path": "frontend/css/tower-alfred.css",
-        "bytes": 3559,
-        "sha256": "6d38c75fd56c4b067644e9630e8c640c804b13ff26dd4b69efa240181799249b"
+        "bytes": 7969,
+        "sha256": "6ef73ac6d2f8bc04977f8148024991a7b1797d2a49008e1459733d423da0fb0e"
       },
       {
         "path": "frontend/css/tutorial.css",
@@ -1058,8 +1063,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 77243,
-        "sha256": "4982508255dfbbfb63d81ffb30d282c4f4254044c77c02c6a0526dcd5ebeaaa0"
+        "bytes": 77388,
+        "sha256": "f2f77f715d614912701b838db10945ae2c7eb27b5ee7174e3c418da1b0cbf229"
       },
       {
         "path": "frontend/js/arcade.js",
