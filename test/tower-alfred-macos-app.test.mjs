@@ -11,6 +11,8 @@ assert.ok(!installerSource.includes('unlink(LOCK_FILE)'), 'the lock inode remain
 assert.ok(installerSource.includes('O_CLOEXEC'), 'lock ownership cannot leak into browser or sidecar helper execs');
 assert.ok(installerSource.includes('static int open_owned_instance(int lock_fd)'), 'duplicate readiness follows the currently held lock generation');
 assert.ok(installerSource.includes('read_owner_nonce(lock_fd, owner_nonce) && tower_ready(owner_nonce)'), 'duplicate clicks retry the owner nonce instead of waiting on stale lock contents');
+assert.ok(installerSource.includes('renameatx_np') && installerSource.includes('RENAME_SWAP'), 'existing app updates use Darwin atomic directory exchange');
+assert.ok(!installerSource.includes("fs.renameSync(appPath, backupPath)"), 'installer never removes the live app pathname before replacement');
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'tower-alfred-app-test-'));
 try {
   const home = path.join(scratch, 'home');
@@ -73,6 +75,24 @@ try {
   assert.ok(launcher.includes('window.__TOWER_ALFRED_BOOT__='), 'readiness is checked only after instance ownership is established');
   assert.ok(!launcher.startsWith('#!'), 'bundle uses a native executable accepted by LaunchServices');
   assert.ok(!launcher.includes('eval '), 'bundle launcher does not evaluate dynamic shell text');
+
+  const oldMarker = path.join(result.appPath, 'old-install-marker');
+  fs.writeFileSync(oldMarker, 'old');
+  const replacement = installTowerAlfredApp({
+    home,
+    installDir,
+    nodePath: process.execPath,
+    desktopAlias: false,
+    register: false,
+    sign: false
+  });
+  assert.equal(replacement.appPath, result.appPath, 'replacement preserves the stable application path');
+  assert.ok(!fs.existsSync(oldMarker), 'atomic exchange installs the newly staged bundle');
+  assert.deepEqual(
+    fs.readdirSync(installDir).filter((name) => name.includes('.backup-') || name.includes('.tower-alfred-build-')),
+    [],
+    'atomic exchange leaves no displaced bundle or build directory'
+  );
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true });
 }

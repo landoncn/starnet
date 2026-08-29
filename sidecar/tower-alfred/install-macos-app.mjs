@@ -31,6 +31,30 @@ function makeIcon(source, destination, scratch) {
   run('/usr/bin/iconutil', ['-c', 'icns', iconset, '-o', destination]);
 }
 
+function installBundleAtomically({ stagedAppPath, appPath, clangPath, scratch }) {
+  if (!fs.existsSync(appPath)) {
+    fs.renameSync(stagedAppPath, appPath);
+    return;
+  }
+
+  const source = path.join(scratch, 'tower-alfred-atomic-swap.c');
+  const executable = path.join(scratch, 'tower-alfred-atomic-swap');
+  fs.writeFileSync(source, `#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+int main(int argc, char **argv) {
+  if (argc != 3) return 2;
+  if (renameatx_np(AT_FDCWD, argv[1], AT_FDCWD, argv[2], RENAME_SWAP) == 0) return 0;
+  perror("renameatx_np(RENAME_SWAP)");
+  return errno ? errno : 1;
+}
+`);
+  run(clangPath, ['-Os', '-Wall', '-Wextra', '-arch', process.arch === 'arm64' ? 'arm64' : 'x86_64', source, '-o', executable]);
+  run(executable, [stagedAppPath, appPath]);
+  // After RENAME_SWAP, the new bundle is continuously visible at appPath and
+  // the displaced old bundle is at stagedAppPath for build-root cleanup.
+}
+
 export function installTowerAlfredApp(options = {}) {
   if (process.platform !== 'darwin') throw new Error('Tower Alfred desktop installation currently requires macOS');
   const home = options.home || os.homedir();
@@ -316,19 +340,7 @@ int main(void) {
     run('/usr/bin/plutil', ['-lint', path.join(contents, 'Info.plist')]);
     if (options.sign !== false && fs.existsSync('/usr/bin/codesign')) run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', stagedAppPath]);
 
-    const backupPath = `${appPath}.backup-${process.pid}-${Date.now()}`;
-    let hadExisting = false;
-    try {
-      if (fs.existsSync(appPath)) {
-        fs.renameSync(appPath, backupPath);
-        hadExisting = true;
-      }
-      fs.renameSync(stagedAppPath, appPath);
-      if (hadExisting) fs.rmSync(backupPath, { recursive: true, force: true });
-    } catch (error) {
-      if (!fs.existsSync(appPath) && hadExisting && fs.existsSync(backupPath)) fs.renameSync(backupPath, appPath);
-      throw error;
-    }
+    installBundleAtomically({ stagedAppPath, appPath, clangPath, scratch: buildRoot });
   } finally {
     fs.rmSync(buildRoot, { recursive: true, force: true });
   }
