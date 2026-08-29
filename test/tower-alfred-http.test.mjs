@@ -23,7 +23,12 @@ const service = {
     emit({ name: 'agent.run.end', payload: { runId: 'r1', reason: 'end_turn' } });
   },
   resolvePermission(body) { calls.push(['permission', body]); return { ok: true, decision: 'allow_once' }; },
-  async cancel() { calls.push(['cancel']); return { ok: true, cancelled: true }; }
+  async cancel() { calls.push(['cancel']); return { ok: true, cancelled: true }; },
+  async studioStatus() { calls.push(['studio']); return { ok: true, studio: { id: 'anglers-hollow' }, agents: [], artifacts: [] }; },
+  async readStudioArtifact(file) {
+    calls.push(['artifact', file]);
+    return { data: Buffer.from('RIFFtest'), mime: 'audio/wav', bytes: 8, path: file };
+  }
 };
 const handlers = createTowerAlfredHttpHandlers({
   service,
@@ -34,6 +39,49 @@ const statusRes = response();
 await handlers.status({}, statusRes);
 assert.equal(statusRes.statusCode, 200);
 assert.deepEqual(JSON.parse(statusRes.chunks.join('')), { enabled: true, supervisor: 'ALFRED' });
+
+const studioRes = response();
+await handlers.studio({}, studioRes);
+assert.equal(studioRes.statusCode, 200);
+assert.deepEqual(JSON.parse(studioRes.chunks.join('')).studio, { id: 'anglers-hollow' });
+
+const artifactRes = {
+  statusCode: 200,
+  headers: {},
+  writeHead(code, headers) { this.statusCode = code; this.headers = headers || {}; },
+  end(chunk) { this.body = chunk; this.ended = true; }
+};
+await handlers.studioArtifact({ url: '/api/tower/studio/artifact?path=studio%2Fartifacts%2Flake.wav' }, artifactRes);
+assert.equal(artifactRes.statusCode, 200);
+assert.equal(artifactRes.headers['Content-Type'], 'audio/wav');
+assert.equal(artifactRes.headers['Content-Length'], '8');
+assert.deepEqual(artifactRes.body, Buffer.from('RIFFtest'));
+assert.deepEqual(calls.find(row => row[0] === 'artifact'), ['artifact', 'studio/artifacts/lake.wav']);
+
+const missingArtifactRes = response();
+await handlers.studioArtifact({ url: '/api/tower/studio/artifact' }, missingArtifactRes);
+assert.equal(missingArtifactRes.statusCode, 400);
+
+const privateErrorHandlers = createTowerAlfredHttpHandlers({
+  service: { async readStudioArtifact() { throw new Error('ENOENT /Users/private/project/secret.wav'); } },
+  async readBody(req) { return req.body; }
+});
+const privateErrorRes = response();
+await privateErrorHandlers.studioArtifact({ url: '/api/tower/studio/artifact?path=studio%2Fartifacts%2Fmissing.wav' }, privateErrorRes);
+assert.equal(privateErrorRes.statusCode, 404);
+assert.deepEqual(JSON.parse(privateErrorRes.chunks.join('')), { ok: false, error: 'Artifact preview unavailable' });
+
+const privateStatusHandlers = createTowerAlfredHttpHandlers({
+  service: {
+    status() { return { enabled: true }; },
+    async studioStatus() { throw new Error('read failed at /Users/alfred/Projects/Anglers-Hollow/studio/manifest.json'); }
+  },
+  readBody: async () => ({})
+});
+const privateStatusRes = response();
+await privateStatusHandlers.studio({}, privateStatusRes);
+assert.equal(privateStatusRes.statusCode, 503);
+assert.deepEqual(JSON.parse(privateStatusRes.chunks.join('')), { ok: false, error: 'Studio telemetry unavailable' });
 
 const runRes = response();
 await handlers.run({ body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] }) }, runRes);

@@ -693,7 +693,9 @@ test/tower-alfred-launcher.test.mjs
 test/tower-alfred-service.test.mjs
 test/tower-alfred-sessions.test.mjs
 test/tower-alfred-http.test.mjs
+test/tower-alfred-studio.test.mjs
 test/tower-alfred-wiring.test.js
 test/tower-alfred-frontend.test.js
+test/tower-alfred-studio-frontend.test.js
 test/tower-alfred-art.test.mjs
 test/tower-alfred-macos-app.test.mjs

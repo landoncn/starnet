@@ -20,5 +20,9 @@
   },
   "storage": {
     "workspaces": ".tower-alfred/workspaces"
+  },
+  "studio": {
+    "projectRoot": "/Users/alfred/Projects/Anglers-Hollow",
+    "kanbanBoard": "anglers-hollow"
   }
 }

@@ -13,6 +13,10 @@ assert.ok(source.includes('process.env.TOWER_ALFRED_LAUNCH_NONCE'), 'sidecar rea
 assert.ok(source.includes("/^[a-f0-9]{64}$/"), 'sidecar accepts only a canonical 256-bit hex launcher nonce');
 assert.ok(source.includes('launchNonce: towerLaunchNonce'), 'owned nonce is bound into server boot attestation');
 assert.ok(source.includes("exact: '/api/tower/status'"), 'Tower status route is wired');
+assert.ok(source.includes("exact: '/api/tower/studio'"), 'Tower studio roster route is wired');
+assert.ok(source.includes("qsplit: '/api/tower/studio/artifact'"), 'Tower studio artifact route is wired');
+assert.ok(source.includes("studioRoot: process.env.TOWER_ALFRED_STUDIO_ROOT || ''"), 'Tower sidecar receives the configured studio project root');
+assert.ok(source.includes("studioBoard: process.env.TOWER_ALFRED_STUDIO_BOARD || 'anglers-hollow'"), 'Tower sidecar receives the configured native Kanban board');
 assert.ok(source.includes("exact: '/api/tower/run'"), 'Tower prompt stream route is wired');
 assert.ok(source.includes("exact: '/api/tower/consent'"), 'Tower permission route is wired');
 assert.ok(source.includes("exact: '/api/tower/cancel'"), 'Tower cancellation route is wired');

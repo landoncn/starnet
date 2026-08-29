@@ -127,6 +127,10 @@ Edit `tower-alfred.config.json`, or pass a different file with `--config`.
   },
   "storage": {
     "workspaces": ".tower-alfred/workspaces"
+  },
+  "studio": {
+    "projectRoot": "/Users/alfred/Projects/Anglers-Hollow",
+    "kanbanBoard": "anglers-hollow"
   }
 }
 ```
@@ -142,6 +146,16 @@ Operational fields:
 - `server.port`: Tower origin and sidecar port; overridden by `--port`
 - `server.openBrowser`: whether launch opens the browser
 - `storage.workspaces`: Tower-specific StarNet state root, relative to the repository unless absolute
+- `studio.projectRoot`: absolute path to the authorized Angler's Hollow checkout; Tower reads only `studio/manifest.json`, `studio/artifacts.json`, and registered artifacts
+- `studio.kanbanBoard`: validated Hermes Kanban board slug used as the sole live work-status source
+
+### Angler's Hollow Studio command center
+
+In attested Tower mode, the returning-user screen includes a read-only command panel. Its roster is the ordered set of durable Hermes profiles declared by the project's `studio/manifest.json`. Current assignments come directly from `hermes kanban --board <board> list --json`; profile existence without a task is shown as idle, and a failed board read is shown as unknown rather than fabricated activity.
+
+The same panel lists project artifacts registered in `studio/artifacts.json`. Only allowlisted raster-image and audio formats are previewable. The sidecar rejects unregistered paths, traversal, symlinks, unsupported types, and files above the configured cap, then serves the selected file behind StarNet's existing local API-token gate. Browser previews use revocable blob URLs, so no project path or API credential is placed in an `<img>` or `<audio>` URL.
+
+The permanent studio profiles are `ahtech`, `ahgameplay`, `ahbalance`, `ahnarrative`, `ahvisual`, `ahaudio`, and `ahqa`. ALFRED remains the sole integration authority in the `default` profile; Tower does not turn the specialist profiles into independent supervisors.
 
 The sidecar injects the Tower boot attestation and these non-secret presentation values into served HTML only when `TOWER_ALFRED=1`. A URL query or ordinary StarNet launch cannot activate Tower mode or seed the Tower supervisor.
 
@@ -152,6 +166,8 @@ Each frontend `streamId` owns one reusable ACP runtime/session for the life of t
 Tower routes are registered only when `TOWER_ALFRED=1`:
 
 - `GET /api/tower/status`
+- `GET /api/tower/studio`
+- `GET /api/tower/studio/artifact?path=<registered-relative-path>`
 - `POST /api/tower/run`
 - `POST /api/tower/consent`
 - `POST /api/tower/cancel`
@@ -217,7 +233,7 @@ It is not yet a public binary release:
 
 1. Tower mode now has an original wordmark, app icon, Night Warden supervisor sprite, palette, and gothic skyline/rain treatment. The underlying repository still retains upstream StarNet assets and station presentation for ordinary source mode, so a fully independent public distribution still requires a complete reserved-asset inventory and replacement pass.
 2. A separately named local `Tower Alfred.app` exists and is ad-hoc signed. Developer ID signing, Apple notarization, and a distributable DMG have not been produced.
-3. Delegated Hermes subagents execute correctly through ALFRED, but they are not yet projected as individually animated crew members in the station.
+3. Seven durable Angler's Hollow specialist profiles and a Kanban-backed read-only command panel are now projected in Tower. Specialist work appears as truthful task status and registered art/audio deliverables; live crew animation remains outside this scope.
 4. ACP sessions are isolated and reused per workstream while the sidecar is running; sidecar restart currently starts fresh ACP sessions rather than loading a prior ACP session ID.
 5. The Tower overlay renames visible runtime text in Tower mode; upstream source-mode behavior remains available and unchanged when Tower mode is off.
 6. `product.shortName` and `product.commanderTitle` are reserved configuration fields but are not yet projected separately from `product.name` and the existing station vocabulary.

@@ -8378,6 +8378,8 @@ function getTowerAlfredHandlers() {
         hermesCommand: process.env.TOWER_ALFRED_HERMES_COMMAND || 'hermes',
         productName: process.env.TOWER_ALFRED_PRODUCT || 'Tower Alfred',
         supervisorName: process.env.TOWER_ALFRED_NAME || 'ALFRED',
+        studioRoot: process.env.TOWER_ALFRED_STUDIO_ROOT || '',
+        studioBoard: process.env.TOWER_ALFRED_STUDIO_BOARD || 'anglers-hollow',
         cwd: process.cwd()
       });
       return httpMod.createTowerAlfredHttpHandlers({ service: towerAlfredService, readBody });
@@ -8392,6 +8394,14 @@ function towerAlfredUnavailable(res) {
 async function handleTowerAlfredStatus(req, res) {
   const handlers = await getTowerAlfredHandlers();
   return handlers ? handlers.status(req, res) : towerAlfredUnavailable(res);
+}
+async function handleTowerAlfredStudio(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.studio(req, res) : towerAlfredUnavailable(res);
+}
+async function handleTowerAlfredStudioArtifact(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.studioArtifact(req, res) : towerAlfredUnavailable(res);
 }
 async function handleTowerAlfredRun(req, res) {
   const handlers = await getTowerAlfredHandlers();
@@ -8408,6 +8418,8 @@ async function handleTowerAlfredCancel(req, res) {
 
 const ROUTES = [
   { m: 'GET', exact: '/api/tower/status', h: handleTowerAlfredStatus },
+  { m: 'GET', exact: '/api/tower/studio', h: handleTowerAlfredStudio },
+  { m: 'GET', qsplit: '/api/tower/studio/artifact', h: handleTowerAlfredStudioArtifact },
   { m: 'POST', exact: '/api/tower/run', h: handleTowerAlfredRun },
   { m: 'POST', exact: '/api/tower/consent', h: handleTowerAlfredConsent },
   { m: 'POST', exact: '/api/tower/cancel', h: handleTowerAlfredCancel },

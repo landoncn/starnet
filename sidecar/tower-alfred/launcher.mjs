@@ -4,6 +4,7 @@ import path from 'node:path';
 
 const DEFAULT_PORT = 8787;
 const PROFILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const BOARD_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export const TOWER_USAGE = 'usage: starnet alfred [--no-open] [--port PORT] [--profile NAME] [--config PATH]';
 
 function usage(message) {
@@ -57,6 +58,12 @@ function validateConfig(config) {
   if (!PROFILE_RE.test(profile) || profile.includes('..')) throw new Error('Tower Alfred config has an invalid Hermes profile');
   const port = Number(config.server && config.server.port || DEFAULT_PORT);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Tower Alfred config has an invalid server port');
+  if (config.studio) {
+    const projectRoot = String(config.studio.projectRoot || '');
+    const board = String(config.studio.kanbanBoard || '');
+    if (!path.isAbsolute(projectRoot)) throw new Error('Tower Alfred config studio.projectRoot must be absolute');
+    if (!BOARD_RE.test(board)) throw new Error('Tower Alfred config has an invalid studio kanbanBoard');
+  }
   return config;
 }
 
@@ -86,6 +93,8 @@ export function buildLaunchPlan({ repoRoot, config, cli, nodePath = process.exec
   const workspaces = path.isAbsolute(configuredWorkspaces)
     ? configuredWorkspaces
     : path.resolve(repoRoot, configuredWorkspaces);
+  const studioRoot = config.studio ? path.resolve(String(config.studio.projectRoot)) : '';
+  const studioBoard = config.studio ? String(config.studio.kanbanBoard || '') : '';
   return {
     command: nodePath,
     args: [path.join(repoRoot, 'sidecar', 'index.js')],
@@ -101,6 +110,8 @@ export function buildLaunchPlan({ repoRoot, config, cli, nodePath = process.exec
       TOWER_ALFRED_PRODUCT: productName,
       TOWER_ALFRED_NAME: supervisorName,
       TOWER_ALFRED_ROLE: supervisorRole,
+      TOWER_ALFRED_STUDIO_ROOT: studioRoot,
+      TOWER_ALFRED_STUDIO_BOARD: studioBoard,
       STARNET_WORKSPACES: workspaces
     },
     url: `http://${host}:${port}/`,

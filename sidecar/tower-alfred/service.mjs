@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ACP_PERMISSION_CANCELLED, createHermesAcpRuntime } from './acp-runtime.mjs';
+import { createTowerStudioService } from './studio.mjs';
 
 export { ACP_PERMISSION_CANCELLED };
 
@@ -62,6 +63,12 @@ export function createTowerAlfredService(options = {}) {
     onUpdate: handlers.onUpdate,
     onPermission: handlers.onPermission
   }));
+  const studio = options.studioService || (options.studioRoot ? createTowerStudioService({
+    root: options.studioRoot,
+    board: options.studioBoard || 'anglers-hollow',
+    hermesCommand,
+    cwd
+  }) : null);
 
   const conversations = new Map();
   const runs = new Map();
@@ -265,6 +272,16 @@ export function createTowerAlfredService(options = {}) {
     };
   }
 
+  async function studioStatus() {
+    if (!studio) return { ok: false, state: 'unavailable', error: 'Angler’s Hollow Studio is not configured', agents: [], artifacts: [] };
+    return studio.status();
+  }
+
+  async function readStudioArtifact(relativePath) {
+    if (!studio) throw new Error('Angler’s Hollow Studio is not configured');
+    return studio.readArtifact(relativePath);
+  }
+
   async function stop() {
     for (const conversation of conversations.values()) {
       if (conversation.active) conversation.active.cancelling = true;
@@ -277,5 +294,5 @@ export function createTowerAlfredService(options = {}) {
     runs.clear();
   }
 
-  return { run, resolvePermission, cancel, status, stop };
+  return { run, resolvePermission, cancel, status, studioStatus, readStudioArtifact, stop };
 }

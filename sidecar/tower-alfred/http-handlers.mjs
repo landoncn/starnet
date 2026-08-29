@@ -22,6 +22,30 @@ export function createTowerAlfredHttpHandlers({ service, readBody }) {
     sendJson(res, 200, service.status());
   }
 
+  async function studio(_req, res) {
+    try { sendJson(res, 200, await service.studioStatus()); }
+    catch (_) { sendJson(res, 503, { ok: false, error: 'Studio telemetry unavailable' }); }
+  }
+
+  async function studioArtifact(req, res) {
+    let requestedPath = '';
+    try { requestedPath = new URL(String(req && req.url || ''), 'http://127.0.0.1').searchParams.get('path') || ''; }
+    catch (_) {}
+    if (!requestedPath) return sendJson(res, 400, { ok: false, error: 'artifact path is required' });
+    try {
+      const artifact = await service.readStudioArtifact(requestedPath);
+      res.writeHead(200, {
+        'Content-Type': artifact.mime,
+        'Content-Length': String(artifact.bytes),
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff'
+      });
+      res.end(artifact.data);
+    } catch (_) {
+      sendJson(res, 404, { ok: false, error: 'Artifact preview unavailable' });
+    }
+  }
+
   async function run(req, res) {
     const body = await parseBody(req, res, readBody);
     if (!body) return;
@@ -77,5 +101,5 @@ export function createTowerAlfredHttpHandlers({ service, readBody }) {
     sendJson(res, 200, await service.cancel(body));
   }
 
-  return { status, run, consent, cancel };
+  return { status, studio, studioArtifact, run, consent, cancel };
 }

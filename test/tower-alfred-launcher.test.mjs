@@ -27,6 +27,8 @@ const config = await loadTowerConfig(path.join(repoRoot, 'tower-alfred.config.js
 assert.equal(config.product.name, 'Tower Alfred');
 assert.equal(config.hermes.profile, 'default');
 assert.equal(config.server.port, 8791);
+assert.equal(config.studio.projectRoot, '/Users/alfred/Projects/Anglers-Hollow');
+assert.equal(config.studio.kanbanBoard, 'anglers-hollow');
 assert.throws(() => buildLaunchPlan({
   repoRoot,
   config: { ...config, server: { ...config.server, host: 'evil.example' } },
@@ -50,6 +52,8 @@ assert.equal(plan.env.TOWER_ALFRED_PROFILE, 'research');
 assert.equal(plan.env.TOWER_ALFRED_HERMES_COMMAND, config.hermes.command, 'the sidecar executes the exact Hermes binary that passed preflight');
 assert.equal(plan.env.TOWER_ALFRED_PRODUCT, 'Tower Alfred');
 assert.equal(plan.env.TOWER_ALFRED_NAME, 'ALFRED');
+assert.equal(plan.env.TOWER_ALFRED_STUDIO_ROOT, '/Users/alfred/Projects/Anglers-Hollow');
+assert.equal(plan.env.TOWER_ALFRED_STUDIO_BOARD, 'anglers-hollow');
 assert.equal(plan.env.PORT, '18877');
 assert.equal(plan.env.STARNET_PORT, '18877');
 assert.equal(plan.env.STARNET_WORKSPACES, path.join(repoRoot, '.tower-alfred', 'workspaces'));
