@@ -51,8 +51,31 @@
     nodes.forEach(brandNode);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => brandNode(document.body), { once: true });
-  else brandNode(document.body);
+  function decorateTower() {
+    const logo = document.querySelector('.logo-img');
+    if (logo) logo.setAttribute('aria-label', defaults.productName);
+    const logoSub = document.querySelector('#logo .logo-sub');
+    if (logoSub) logoSub.textContent = `HERMES ACP · ${defaults.profile.toUpperCase()} PROFILE`;
+    const splashLogo = document.querySelector('.sp-logo');
+    if (splashLogo) {
+      splashLogo.src = 'assets/tower-alfred/tower-alfred-icon.png';
+      splashLogo.alt = defaults.productName;
+    }
+    const camLabel = document.querySelector('.cam-label');
+    if (camLabel) camLabel.textContent = `${defaults.supervisor.toUpperCase()} SANCTUM · HERMES ACP`;
+    const topbar = document.getElementById('topbar');
+    if (topbar && !document.getElementById('tower-authority-badge')) {
+      const badge = document.createElement('div');
+      badge.id = 'tower-authority-badge';
+      badge.setAttribute('role', 'status');
+      badge.textContent = `${defaults.supervisor} ATTACHED · HERMES ACP · ${defaults.profile} PROFILE`;
+      topbar.appendChild(badge);
+    }
+  }
+
+  const onReady = () => { brandNode(document.body); decorateTower(); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady, { once: true });
+  else onReady();
 
   const observer = new MutationObserver(records => {
     for (const record of records) for (const node of record.addedNodes) brandNode(node);

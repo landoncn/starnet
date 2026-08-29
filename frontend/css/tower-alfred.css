@@ -1,0 +1,130 @@
+/* Tower Alfred — original nocturnal pixel-fantasy presentation.
+   Scoped to server-attested Tower mode; ordinary StarNet remains untouched. */
+html[data-product="tower-alfred"] body {
+  --bg: #04060c;
+  --panel: #080d17;
+  --panel2: #0d1421;
+  --ph: #62c7f2;
+  --ph-rgb: 98, 199, 242;
+  --ph-bright: #c6edff;
+  --ph-bright-rgb: 198, 237, 255;
+  --ph-dim: #386b84;
+  --ph-faint: #1b3547;
+  --ph-glow: rgba(78, 185, 232, .58);
+  --ph-glow2: rgba(78, 185, 232, .24);
+  --ink: #04070d;
+  --text: #acc7d7;
+  --gold: #d9a941;
+  --gold-rgb: 217, 169, 65;
+  --cam-grade: brightness(.76) saturate(.74) contrast(1.16) hue-rotate(166deg);
+  background:
+    radial-gradient(circle at 72% 18%, rgba(58, 99, 128, .14), transparent 31%),
+    linear-gradient(180deg, #070a12 0%, #020308 100%);
+}
+
+html[data-product="tower-alfred"] .logo-img {
+  position: relative;
+  width: 226px;
+  height: 30px;
+  aspect-ratio: auto;
+  background: none;
+  -webkit-mask: none;
+          mask: none;
+}
+
+html[data-product="tower-alfred"] .logo-img::before {
+  content: 'TOWER ALFRED';
+  display: block;
+  color: var(--ph-bright);
+  font-family: VT323, monospace;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 30px;
+  letter-spacing: 3.2px;
+  white-space: nowrap;
+  text-shadow: 0 0 10px rgba(var(--ph-rgb), .48);
+}
+
+html[data-product="tower-alfred"] #logo .logo-sub {
+  color: var(--gold);
+  letter-spacing: 1.4px;
+}
+
+html[data-product="tower-alfred"] #stage-wrap {
+  box-shadow:
+    0 0 0 calc(2px * var(--cz)) #294c61,
+    0 0 0 calc(3.5px * var(--cz)) rgba(0, 0, 0, .95),
+    0 0 28px rgba(63, 165, 210, .16),
+    inset 0 0 var(--tube-inset) rgba(0, 0, 0, .92);
+}
+
+/* Original skyline/rain/ironwork art over the live station camera. */
+html[data-product="tower-alfred"] #stage-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: url(../assets/tower-alfred/sanctum-overlay.png) center / cover no-repeat;
+  opacity: .46;
+  mix-blend-mode: screen;
+  image-rendering: pixelated;
+}
+
+html[data-product="tower-alfred"] .cam-label {
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(var(--gold-rgb), .42);
+}
+
+#tower-authority-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 5;
+  transform: translateX(-50%);
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 10px;
+  border: 1px solid rgba(var(--ph-rgb), .46);
+  border-bottom-color: rgba(var(--gold-rgb), .62);
+  border-radius: 2px;
+  color: var(--ph-bright);
+  background: rgba(3, 6, 12, .82);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, .68), inset 0 0 12px rgba(var(--ph-rgb), .08);
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  pointer-events: none;
+}
+
+#tower-authority-badge::before {
+  content: '◆';
+  margin-right: 7px;
+  color: var(--gold);
+}
+
+html[data-product="tower-alfred"] #chat-panel h3,
+html[data-product="tower-alfred"] #left h3 {
+  background: linear-gradient(90deg, #315d75, #172d3e 70%, #101824);
+  color: #d9edf5;
+  border-bottom: 1px solid rgba(var(--gold-rgb), .42);
+}
+
+html[data-product="tower-alfred"] .sp-nebula {
+  background: radial-gradient(circle at 72% 23%, rgba(62, 148, 191, .18), transparent 34%);
+}
+
+html[data-product="tower-alfred"] .sp-tag,
+html[data-product="tower-alfred"] .boot-mark {
+  color: var(--gold);
+}
+
+@media (max-width: 900px) {
+  #tower-authority-badge { display: none; }
+  html[data-product="tower-alfred"] .logo-img { width: 178px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-product="tower-alfred"] #stage-wrap::after { opacity: .38; }
+}

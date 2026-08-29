@@ -2565,16 +2565,22 @@ const App = (() => {
   // (disconnect, recovery, back). Preserves the agent ALWAYS: if creds are in hand it resumes straight into the
   // station; otherwise it shows the connect screen in RESUME mode. Only a genuine no-save state falls through
   // to a fresh creation.
+  function towerAuthorityReady() {
+    return !!(typeof window !== 'undefined' && window.__TOWER_ALFRED__)
+      || !!(Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex');
+  }
+
   function reentry() {
     // FORWARD-VERSION GATE (P0.3): a re-entry (disconnect / back / recovery) must not fall through to a fresh
     // create when the stored save is from a NEWER build — Save.load() returns null for it, which would look like
     // "no save" and clobber it on first persist(). Stop at the honest update gate; the save stays untouched.
     if (Save.isFuture && Save.isFuture()) { showFutureSaveGate(Save.loadStatus().version); return; }
-    const saved = Save.has() ? Save.load() : null;
+    let saved = Save.has() ? Save.load() : null;
+    saved = attachTowerAlfredAuthority(saved);
     if (saved && saved.agent) {
       if (saved.prov && Harness.setProv) Harness.setProv(saved.prov);
       if (saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
-      if (Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex') {
+      if (towerAuthorityReady()) {
         resumingSaved = null; resumeInto(saved); return;
       }
       resumingSaved = saved;
@@ -4768,9 +4774,10 @@ const App = (() => {
         name: tower.supervisor || 'ALFRED',
         role: 'orchestrator',
         color: ORCH_COLOR,
-        skin: (typeof DATA !== 'undefined' && DATA.DEFAULT_SKIN) || 'bear',
+        skin: 'nightwarden',
         model: 'hermes/' + (tower.profile || 'default'),
         provider: 'hermes',
+        authority: 'hermes-acp',
         reasoningEffort: 'medium',
         personaId: (typeof Personas !== 'undefined' && Personas.DEFAULT_ID) || 'professional',
         voiceTraits: {},
@@ -4786,6 +4793,25 @@ const App = (() => {
       usage: { tokens: 0, cost: 0, calls: 0 },
       updatedAt: now
     };
+  }
+
+  function attachTowerAlfredAuthority(saved) {
+    const tower = (typeof window !== 'undefined' && window.__TOWER_ALFRED__) || null;
+    if (!tower || !saved || !saved.agent) return saved;
+    return Object.assign({}, saved, {
+      prov: 'hermes',
+      agent: Object.assign({}, saved.agent, {
+        id: 'agent',
+        name: tower.supervisor || 'ALFRED',
+        role: 'orchestrator',
+        model: 'hermes/' + (tower.profile || 'default'),
+        provider: 'hermes',
+        authority: 'hermes-acp',
+        skin: 'nightwarden',
+        purpose: tower.role || 'Supervisory Intelligence',
+        onboarded: true
+      })
+    });
   }
 
   /* ---------- boot ---------- */
@@ -4857,7 +4883,8 @@ const App = (() => {
     // the agent back after a browser-cache wipe (local gone, the sidecar still holds it) and refreshes the
     // cache to match. Best-effort: an unreachable sidecar just falls back to the local cache.
     if (typeof CloudSave !== 'undefined') CloudSave.installUnloadFlush();
-    const saved = (typeof CloudSave !== 'undefined') ? await CloudSave.reconcile(Save.load()) : Save.load();
+    let saved = (typeof CloudSave !== 'undefined') ? await CloudSave.reconcile(Save.load()) : Save.load();
+    saved = attachTowerAlfredAuthority(saved);
     // FORWARD-VERSION GATE (P0.3), step 2 — a durable REMOTE from a newer build. reconcile() refuses to adopt it
     // into the cache and hands back a future-save sentinel instead of a resumable doc. Same hard stop: gate, return,
     // nothing persists.
@@ -4900,7 +4927,7 @@ const App = (() => {
       // and if that is slow/blocked, awaiting it here strands boot on the connect screen forever (the seeded DEV
       // shoot regression). The catalog is cosmetic for resume (dropdown/pricing/context gauge), so fire it in the
       // BACKGROUND and enter the station immediately — pricing fills in a beat later, the floor never waits.
-      const canResume = !!(Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex');
+      const canResume = towerAuthorityReady();
       if (canResume) {
         if (Harness.getProv && Harness.getProv() !== 'codex' && Harness.listModels) { Promise.resolve(Harness.listModels()).catch(() => {}); }
         resumeInto(saved); return;

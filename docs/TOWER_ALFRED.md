@@ -22,8 +22,25 @@ starnet alfred
 The installed command resolves to the checkout's `bin/starnet.mjs`. It checks Hermes ACP, starts the local sidecar, waits for a real HTTP response, and opens:
 
 ```text
-http://127.0.0.1:8791/?tower=alfred&...
+http://127.0.0.1:8791/
 ```
+
+### Clickable macOS app
+
+Install the local app bundle and Desktop shortcut with:
+
+```sh
+npm run tower:install-app
+```
+
+This creates:
+
+```text
+~/Applications/Tower Alfred.app
+~/Desktop/Tower Alfred.app -> ~/Applications/Tower Alfred.app
+```
+
+The bundle is a native arm64 Mach-O launcher with an original Tower Alfred icon. Clicking it starts Tower without opening Terminal. A per-user `flock` is acquired before startup, a fresh 256-bit nonce is passed only to the owned sidecar, and that nonce must return in the server-injected boot attestation before the browser can open. The sidecar is launched with `--no-open`, and only the lock-owning launcher opens the browser after its exact Tower child becomes ready. Rapid duplicate clicks read the owner nonce from the locked state file and continuously recheck that the original lock remains held; they therefore converge on one owned sidecar. An unrelated process occupying or racing for the configured port cannot satisfy the nonce check and is never opened as Tower. Replacement bundles are built, checked, and signed in staging before the existing installed app is swapped out. The local bundle is ad-hoc signed; Developer ID signing, notarization, and DMG packaging remain release work.
 
 Headless/operator mode:
 
@@ -80,6 +97,8 @@ The station owns:
 - permission UI transport
 
 Tower Alfred does not import or duplicate Hermes credentials, sessions, databases, or secrets.
+
+On every Tower boot, the visible supervisor record is rebound to the server-attested identity: provider `hermes`, model `hermes/<profile>`, authority `hermes-acp`, and the original `nightwarden` presentation skin. Tower treats Hermes ACP as host-authorized, so StarNet's browser-key CTA cannot falsely claim that ALFRED has “no brain wired.” The top bar displays an attested `ALFRED ATTACHED · HERMES ACP · <profile> PROFILE` status.
 
 ## Configuration
 
@@ -173,6 +192,9 @@ The implementation includes automated tests for:
 - HTTP status/run/consent/cancel routes
 - server-attested mode gating that ignores a query-only activation attempt
 - Tower-mode frontend routing and seeded supervisor identity
+- saved-state rebinding to the attested Hermes provider/profile and suppression of the inapplicable browser API-key CTA
+- the original Night Warden sprite manifest, gothic skyline/rain overlay, Tower wordmark, and application icon; Night Warden is registered only when server-attested Tower boot is present
+- native macOS bundle generation, code signing, Desktop shortcut creation, atomic replacement, validated ports, owned-server checks, and duplicate-launch locking
 
 A live verification also proved:
 
@@ -182,16 +204,19 @@ A live verification also proved:
 - server-injected Tower attestation is present only in Tower mode; ordinary StarNet ignores `?tower=alfred`
 - `alpha`, `beta`, then `alpha` again creates two ACP sessions and reuses the first
 - the browser reaches `screen-game` with ALFRED as supervisor
+- the live UI reports `provider: hermes`, `model: hermes/default`, `skin: nightwarden`, and a visible Hermes ACP attachment badge
+- an authenticated live UI-path run reports backend `hermes-acp` and returns a real Hermes response
+- the macOS app launches through LaunchServices without opening Terminal
 - terminating the launcher reaps every exact owned Hermes ACP PID
 
 ## Current boundary
 
-The first operational Tower Alfred vertical slice is complete. It is suitable for local development and use.
+The operational Tower Alfred vertical slice, click-to-launch macOS bundle, authoritative ALFRED/Hermes binding, and first original visual package are complete for local use.
 
 It is not yet a public binary release:
 
-1. The upstream StarNet name, logo, sprites, station artwork, and other brand assets are separately reserved and are not granted by the MIT code license. Tower Alfred must replace those assets before public distribution.
-2. The current command opens the browser-backed source application. A separately named/notarized Tower Alfred `.app`/DMG has not been produced.
+1. Tower mode now has an original wordmark, app icon, Night Warden supervisor sprite, palette, and gothic skyline/rain treatment. The underlying repository still retains upstream StarNet assets and station presentation for ordinary source mode, so a fully independent public distribution still requires a complete reserved-asset inventory and replacement pass.
+2. A separately named local `Tower Alfred.app` exists and is ad-hoc signed. Developer ID signing, Apple notarization, and a distributable DMG have not been produced.
 3. Delegated Hermes subagents execute correctly through ALFRED, but they are not yet projected as individually animated crew members in the station.
 4. ACP sessions are isolated and reused per workstream while the sidecar is running; sidecar restart currently starts fresh ACP sessions rather than loading a prior ACP session ID.
 5. The Tower overlay renames visible runtime text in Tower mode; upstream source-mode behavior remains available and unchanged when Tower mode is off.

@@ -6,9 +6,9 @@ Tower Alfred is a Hermes-backed visual command center built from this StarNet co
 starnet alfred
 ```
 
-ALFRED is the authoritative Hermes `default` profile—not an imported persona copy. See [Tower Alfred architecture, configuration, verification, and release boundaries](docs/TOWER_ALFRED.md).
+ALFRED is the authoritative Hermes `default` profile—not an imported persona copy. A clickable local app is installed at `~/Applications/Tower Alfred.app` with a Desktop shortcut, and Tower mode now carries its own original Night Warden sprite, icon, wordmark, nocturnal palette, and gothic skyline/rain treatment. See [Tower Alfred architecture, configuration, verification, and release boundaries](docs/TOWER_ALFRED.md).
 
-> This branch is operational for local development. It is not yet a public Tower Alfred binary release: upstream's separately reserved logo, sprites, station artwork, and other brand assets must be replaced before distribution. The upstream README is retained below for provenance and source-mode documentation.
+> This branch is operational for local use. It is not yet a public Tower Alfred binary release: the repository retains upstream source-mode station assets, and Developer ID signing, notarization, and DMG packaging remain outstanding. The upstream README is retained below for provenance and source-mode documentation.
 
 ---
 

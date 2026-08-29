@@ -100,6 +100,7 @@
     "replacement:sweep:dry": "node scripts/replacement-sweep.mjs --dry-run",
     "lint:evidence-secrets": "node scripts/lint-evidence-secrets.mjs",
     "sync:website": "node scripts/sync-website-app.mjs",
+    "tower:install-app": "node sidecar/tower-alfred/install-macos-app.mjs",
     "qa:ledger": "node scripts/qa/ledger.mjs",
     "qa:bugs": "node scripts/qa/bugs.mjs --list",
     "qa:bugs:new": "node scripts/qa/bugs.mjs --new",

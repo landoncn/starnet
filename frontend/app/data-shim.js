@@ -56,4 +56,7 @@ DATA.SKINS = {
   caseyjones:    { name: 'Casey Jones',    set: 'caseyjones',    scale: 0.404 },
   finn:          { name: 'Finn',           set: 'finn',          scale: 0.394 },
 };
+if (typeof window !== 'undefined' && window.__TOWER_ALFRED_BOOT__ && window.__TOWER_ALFRED_BOOT__.enabled === true) {
+  DATA.SKINS.nightwarden = { name: 'Night Warden', set: 'nightwarden', scale: 0.385 };
+}
 DATA.DEFAULT_SKIN = 'blank';

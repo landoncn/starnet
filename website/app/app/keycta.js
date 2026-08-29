@@ -29,7 +29,9 @@ const KeyCTA = (() => {
   }
   function providerNeedsKey(p) {
     p = normProv(p);
-    // codex/grok/kimi are keyless OAuth sign-ins; ollama/custom are keyless-by-design endpoints.
+    // Hermes is keyless only behind server-attested Tower authority; a spoofed provider label must not suppress this guard.
+    if (p === 'hermes') return !(typeof window !== 'undefined' && window.__TOWER_ALFRED__);
+    // codex/grok/kimi are keyless OAuth sign-ins; ollama/custom are keyless endpoints.
     return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom';
   }
   function activeProvider() {

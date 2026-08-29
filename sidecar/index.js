@@ -19515,12 +19515,15 @@ async function serveStatic(req, res) {
       // whether one actually exists — still no secret crosses, only the boolean.
       if (DEV_MODE) boot += 'window.__STARNET_DEV__=' + JSON.stringify({ model: CRON_DEFAULT_MODEL || '', prov: (!runtimeKey && codexTokens && codexTokens.access_token) ? 'codex' : 'openrouter', hasKey: !!runtimeKey }) + ';';
       if (TOWER_ALFRED_MODE) {
+        const rawTowerLaunchNonce = String(process.env.TOWER_ALFRED_LAUNCH_NONCE || '').trim().toLowerCase();
+        const towerLaunchNonce = /^[a-f0-9]{64}$/.test(rawTowerLaunchNonce) ? rawTowerLaunchNonce : null;
         const towerBoot = {
           enabled: true,
           productName: process.env.TOWER_ALFRED_PRODUCT || 'Tower Alfred',
           supervisor: process.env.TOWER_ALFRED_NAME || 'ALFRED',
           role: process.env.TOWER_ALFRED_ROLE || 'Supervisory Intelligence',
-          profile: process.env.TOWER_ALFRED_PROFILE || 'default'
+          profile: process.env.TOWER_ALFRED_PROFILE || 'default',
+          launchNonce: towerLaunchNonce
         };
         boot += 'window.__TOWER_ALFRED_BOOT__=' + JSON.stringify(towerBoot).replace(/</g, '\\u003c') + ';';
       }

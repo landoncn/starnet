@@ -9,6 +9,8 @@ const harness = fs.readFileSync(path.join(root, 'frontend', 'app', 'harness.js')
 const app = fs.readFileSync(path.join(root, 'frontend', 'app', 'app.js'), 'utf8');
 const chat = fs.readFileSync(path.join(root, 'frontend', 'app', 'chat.js'), 'utf8');
 const brand = fs.readFileSync(path.join(root, 'frontend', 'app', 'tower-alfred.js'), 'utf8');
+const keyCta = fs.readFileSync(path.join(root, 'frontend', 'app', 'keycta.js'), 'utf8');
+const towerCss = fs.readFileSync(path.join(root, 'frontend', 'css', 'tower-alfred.css'), 'utf8');
 
 const brandPos = index.indexOf('app/tower-alfred.js');
 const harnessPos = index.indexOf('app/harness.js');
@@ -21,7 +23,16 @@ assert.ok(harness.includes("'/api/tower/cancel'"), 'Tower cancellation reaches H
 assert.ok(app.includes('function towerAlfredInitialSave()'), 'fresh Tower launches seed ALFRED as visual supervisor');
 assert.ok(app.includes("supervisor || 'ALFRED'"), 'ALFRED remains the default head identity');
 assert.ok(app.includes("provider: 'hermes'"), 'the visual supervisor is explicitly Hermes-backed');
+assert.ok(app.includes('function attachTowerAlfredAuthority(saved)'), 'saved Tower state is rebound to the server-attested Hermes supervisor');
+assert.ok(app.includes("authority: 'hermes-acp'"), 'the visible supervisor records Hermes ACP as its execution authority');
+assert.ok((app.match(/attachTowerAlfredAuthority\(saved\)/g) || []).length >= 3, 'initial boot and re-entry both reattach saved ALFRED state');
+assert.ok(app.includes('function towerAuthorityReady()'), 'Tower defines a host-authority readiness gate independent of StarNet API keys');
+assert.ok(app.includes("return !!(typeof window !== 'undefined' && window.__TOWER_ALFRED__)"), 'server-attested Tower mode is itself sufficient to resume the Hermes-backed supervisor');
+assert.ok((app.match(/towerAuthorityReady\(\)/g) || []).length >= 3, 'initial boot and later re-entry both use Tower authority readiness');
 assert.ok(app.includes('tower.supervisor'), 'seeded supervisor name comes from Tower configuration');
+assert.ok(keyCta.includes("if (p === 'hermes') return !(typeof window !== 'undefined' && window.__TOWER_ALFRED__)"), 'only server-attested Hermes ACP suppresses the browser API-key warning');
+assert.ok(towerCss.includes("content: 'TOWER ALFRED'"), 'Tower renders an exact independent wordmark instead of a clipped mask');
+assert.ok(!towerCss.includes('-webkit-mask: url(../assets/tower-alfred/tower-alfred-wordmark.svg)'), 'Tower wordmark does not depend on SVG text masking');
 assert.ok(brand.includes('window.__TOWER_ALFRED_BOOT__'), 'Tower mode requires a server-injected attestation');
 assert.ok(!brand.includes("params.get('tower')"), 'a user-controlled query cannot activate Tower mode');
 assert.ok(brand.includes('boot.productName'), 'product name comes from server-attested configuration');
