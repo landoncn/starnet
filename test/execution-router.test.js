@@ -68,6 +68,16 @@ router.execute({ agentId: 'safe', cmd: 'x' }).then(async result => {
   asyncBackend.killAllBackground = () => Promise.resolve(2);
   const asyncRouter = makeExecutionRouter({ environments: { local, async: asyncBackend }, defaultBackendId: 'local', profileForAgent: () => 'station-gear' });
   A.eq(await asyncRouter.killAllBackground(), 3, 'station halt awaits asynchronous backend cleanup instead of orphaning its rejection');
+  let laterCleanupReached = false;
+  const throwingBackend = fake('throwing');
+  throwingBackend.killAllBackground = () => { throw new Error('cleanup failed synchronously'); };
+  const laterBackend = fake('later');
+  laterBackend.killAllBackground = () => { laterCleanupReached = true; return 1; };
+  const throwingRouter = makeExecutionRouter({ environments: { throwing: throwingBackend, later: laterBackend }, defaultBackendId: 'throwing', profileForAgent: () => 'station-gear' });
+  let cleanupFailure = null;
+  try { await throwingRouter.killAllBackground(); } catch (error) { cleanupFailure = error; }
+  A.ok(cleanupFailure && /cleanup failed synchronously/.test(cleanupFailure.message), 'station halt preserves synchronous cleanup failure semantics');
+  A.eq(laterCleanupReached, true, 'a synchronous cleanup failure cannot prevent later backends from being asked to stop');
 
   // ---- Lane C: a requested sandbox is honored or refused, never faked ----
   const noDocker = makeExecutionRouter({ environments: { local }, defaultBackendId: 'local', profileForAgent: agentId => profiles[agentId] || 'station-gear', env: {} });

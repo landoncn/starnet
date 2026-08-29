@@ -177,11 +177,15 @@ function makeExecutionRouter(deps) {
     for (const env of Object.values(environments)) {
       if (!env || seen.has(env) || typeof env.killAllBackground !== 'function') continue;
       seen.add(env);
-      const result = env.killAllBackground();
-      if (result && typeof result.then === 'function') {
-        pending.push(Promise.resolve(result).then(value => { count += Number(value) || 0; }));
-      } else {
-        count += Number(result) || 0;
+      try {
+        const result = env.killAllBackground();
+        if (result && typeof result.then === 'function') {
+          pending.push(Promise.resolve(result).then(value => { count += Number(value) || 0; }));
+        } else {
+          count += Number(result) || 0;
+        }
+      } catch (error) {
+        pending.push(Promise.reject(error));
       }
     }
     return pending.length ? Promise.all(pending).then(() => count) : count;
