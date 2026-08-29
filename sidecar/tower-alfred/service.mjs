@@ -76,9 +76,7 @@ export function createTowerAlfredService(options = {}) {
     entry.settled = true;
     clearTimeout(entry.timer);
     permissions.delete(entry.promptId);
-    if (entry.conversation.active && entry.conversation.active.permission === entry) {
-      entry.conversation.active.permission = null;
-    }
+    if (entry.conversation.active) entry.conversation.active.permissions.delete(entry);
     entry.resolve(optionId);
   }
 
@@ -113,10 +111,11 @@ export function createTowerAlfredService(options = {}) {
       async onPermission(request) {
         const active = conversation.active;
         if (!active) return 'deny';
+        const available = Array.isArray(request && request.options) ? request.options : [];
+        const fallback = denyOption(available);
+        if (active.cancelling) return fallback ? fallback.optionId : 'deny';
         const promptId = idFactory('permission');
         return new Promise(resolve => {
-          const available = Array.isArray(request && request.options) ? request.options : [];
-          const fallback = denyOption(available);
           const entry = {
             promptId,
             runId: active.runId,
@@ -128,7 +127,7 @@ export function createTowerAlfredService(options = {}) {
           };
           entry.timer = setTimeout(() => settlePermission(entry, fallback ? fallback.optionId : 'deny'), permissionTimeoutMs);
           entry.timer.unref?.();
-          active.permission = entry;
+          active.permissions.add(entry);
           permissions.set(promptId, entry);
           emit(conversation, 'permission.prompt', {
             agentId: active.agentId,
@@ -159,7 +158,7 @@ export function createTowerAlfredService(options = {}) {
     if (conversation.active) throw new Error('Tower Alfred already has a prompt in progress for this workstream');
     const agentId = String(body && body.agentId || 'alfred').slice(0, 80);
     const runId = idFactory('tower-run');
-    conversation.active = { runId, agentId, emit: eventSink, permission: null };
+    conversation.active = { runId, agentId, emit: eventSink, permissions: new Set(), cancelling: false };
     runs.set(runId, conversation);
     emit(conversation, 'agent.run.start', {
       agentId,
@@ -193,9 +192,11 @@ export function createTowerAlfredService(options = {}) {
       throw error;
     } finally {
       const active = conversation.active;
-      if (active && active.runId === runId && active.permission) {
-        const fallback = denyOption(active.permission.request.options || []);
-        settlePermission(active.permission, fallback ? fallback.optionId : 'deny');
+      if (active && active.runId === runId) {
+        for (const pending of Array.from(active.permissions)) {
+          const fallback = denyOption(pending.request.options || []);
+          settlePermission(pending, fallback ? fallback.optionId : 'deny');
+        }
       }
       if (conversation.active && conversation.active.runId === runId) conversation.active = null;
       runs.delete(runId);
@@ -229,10 +230,15 @@ export function createTowerAlfredService(options = {}) {
     let cancelled = false;
     await Promise.all(targets.map(async conversation => {
       const active = conversation.active;
-      if (active) cancelled = true;
-      if (active && active.permission) {
-        const fallback = denyOption(active.permission.request.options || []);
-        settlePermission(active.permission, fallback ? fallback.optionId : 'deny');
+      if (active) {
+        cancelled = true;
+        active.cancelling = true;
+      }
+      if (active) {
+        for (const pending of Array.from(active.permissions)) {
+          const fallback = denyOption(pending.request.options || []);
+          settlePermission(pending, fallback ? fallback.optionId : 'deny');
+        }
       }
       await conversation.runtime.cancel();
     }));

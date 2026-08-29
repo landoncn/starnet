@@ -120,4 +120,77 @@ releaseFirstCancel();
 await cancelAll;
 await Promise.all([alphaRun, betaRun]);
 
+let concurrentHandlers;
+let permissionOutcomes;
+const concurrentEvents = [];
+const concurrentService = createTowerAlfredService({
+  runtimeFactory(handlers) {
+    concurrentHandlers = handlers;
+    return {
+      async start() {},
+      status() { return { state: 'ready', sessionId: 'concurrent' }; },
+      async prompt() {
+        permissionOutcomes = Promise.all([
+          concurrentHandlers.onPermission({ title: 'First', options: [
+            { optionId: 'allow-1', kind: 'allow_once', name: 'Allow first' },
+            { optionId: 'deny-1', kind: 'reject_once', name: 'Deny first' }
+          ] }),
+          concurrentHandlers.onPermission({ title: 'Second', options: [
+            { optionId: 'allow-2', kind: 'allow_once', name: 'Allow second' },
+            { optionId: 'deny-2', kind: 'reject_once', name: 'Deny second' }
+          ] })
+        ]);
+        const choices = await permissionOutcomes;
+        return { text: choices.join(','), stopReason: 'cancelled' };
+      },
+      async cancel() {},
+      async stop() {}
+    };
+  },
+  permissionTimeoutMs: 1000
+});
+const concurrentRun = concurrentService.run({ streamId: 'permissions', messages: [{ role: 'user', content: 'request twice' }] }, event => concurrentEvents.push(event));
+await new Promise(resolve => setImmediate(resolve));
+const concurrentPrompts = concurrentEvents.filter(event => event.name === 'permission.prompt');
+assert.equal(concurrentPrompts.length, 2);
+await concurrentService.cancel({});
+for (const event of concurrentPrompts) {
+  assert.equal(concurrentService.resolvePermission({
+    runId: event.payload.runId,
+    promptId: event.payload.promptId,
+    decision: event.payload.options[0].optionId
+  }).ok, false, 'cancelled runs reject every stale concurrent permission response');
+}
+assert.deepEqual(await permissionOutcomes, ['deny-1', 'deny-2'], 'cancellation denies every concurrent ACP permission request');
+await concurrentRun;
+
+let racingHandlers;
+let releaseRacingPrompt;
+let latePermissionOutcome;
+const racingEvents = [];
+const racingService = createTowerAlfredService({
+  runtimeFactory(handlers) {
+    racingHandlers = handlers;
+    return {
+      async start() {},
+      status() { return { state: 'ready', sessionId: 'racing' }; },
+      prompt() { return new Promise(resolve => { releaseRacingPrompt = resolve; }); },
+      async cancel() {
+        latePermissionOutcome = racingHandlers.onPermission({ title: 'Too late', options: [
+          { optionId: 'late-allow', kind: 'allow_once', name: 'Allow late request' },
+          { optionId: 'late-deny', kind: 'reject_once', name: 'Deny late request' }
+        ] });
+        releaseRacingPrompt({ text: '', stopReason: 'cancelled' });
+      },
+      async stop() {}
+    };
+  }
+});
+const racingRun = racingService.run({ streamId: 'race', messages: [{ role: 'user', content: 'cancel me' }] }, event => racingEvents.push(event));
+await new Promise(resolve => setImmediate(resolve));
+await racingService.cancel({});
+assert.equal(racingEvents.filter(event => event.name === 'permission.prompt').length, 0, 'permissions created during cancellation are never offered to the UI');
+assert.equal(await latePermissionOutcome, 'late-deny', 'permissions racing with cancellation fail closed');
+await racingRun;
+
 console.log('tower-alfred-service.test: OK');
