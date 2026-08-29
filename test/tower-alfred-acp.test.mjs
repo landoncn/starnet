@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { createHermesAcpRuntime, hermesAcpArgs } from '../sidecar/tower-alfred/acp-runtime.mjs';
+import { ACP_PERMISSION_CANCELLED, createHermesAcpRuntime, hermesAcpArgs } from '../sidecar/tower-alfred/acp-runtime.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.join(here, 'fixtures', 'tower-alfred-fake-acp.mjs');
@@ -57,4 +57,19 @@ try {
 }
 
 assert.equal(runtime.status().state, 'stopped');
+
+const cancelledRuntime = createHermesAcpRuntime({
+  command: process.execPath,
+  args: [fixture],
+  cwd: process.cwd(),
+  async onPermission() { return ACP_PERMISSION_CANCELLED; }
+});
+try {
+  await cancelledRuntime.start();
+  const cancelledResult = await cancelledRuntime.prompt('Cancel permission.');
+  assert.equal(cancelledResult.text, 'PERMISSION_CANCELLED', 'ACP receives RequestPermissionOutcome::Cancelled rather than a selected deny option');
+} finally {
+  await cancelledRuntime.stop();
+}
+
 console.log('tower-alfred-acp.test: OK');

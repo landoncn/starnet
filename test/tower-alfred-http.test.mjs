@@ -81,4 +81,22 @@ const disconnectedOutcome = await Promise.race([
 assert.equal(disconnectedOutcome, 'finished', 'client disconnect cancels the still-running ACP prompt');
 assert.deepEqual(disconnectedCancel, { runId: 'disconnect-run' }, 'disconnect cancellation targets the exact run');
 
+const failingService = {
+  status() { return {}; },
+  async run(_body, emit) {
+    emit({ name: 'agent.run.start', payload: { runId: 'failed-run' } });
+    emit({ name: 'agent.run.error', payload: { runId: 'failed-run', message: 'failed once' } });
+    emit({ name: 'agent.run.end', payload: { runId: 'failed-run', reason: 'error' } });
+    throw new Error('failed once');
+  },
+  async cancel() { return { ok: true, cancelled: false }; },
+  resolvePermission() { return { ok: false }; }
+};
+const failingHandlers = createTowerAlfredHttpHandlers({ service: failingService, readBody: async req => req.body });
+const failingRes = response();
+await failingHandlers.run({ body: JSON.stringify({ messages: [{ role: 'user', content: 'fail' }] }) }, failingRes);
+const failingEvents = failingRes.chunks.join('').trim().split('\n').map(JSON.parse);
+assert.equal(failingEvents.filter(event => event.name === 'agent.run.error').length, 1, 'a Tower run failure is streamed exactly once');
+assert.equal(failingEvents.find(event => event.name === 'agent.run.error').payload.runId, 'failed-run', 'the single failure remains keyed to its run');
+
 console.log('tower-alfred-http.test: OK');

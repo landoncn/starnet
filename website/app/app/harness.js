@@ -440,7 +440,7 @@ const Harness = (() => {
       .then(() => true)
       .catch(e => { console.warn('[harness] channel-token store failed:', (e && e.message) || e); return false; });
   }
-  const getModel = () => TOWER_MODE ? 'hermes/default' : (localStorage.getItem(LS.model) || '');
+  const getModel = () => TOWER_MODE ? 'hermes/' + String(window.__TOWER_ALFRED__.profile || 'default') : (localStorage.getItem(LS.model) || '');
   const setModel = m => {
     const prev = localStorage.getItem(LS.model) || '';
     localStorage.setItem(LS.model, m || '');

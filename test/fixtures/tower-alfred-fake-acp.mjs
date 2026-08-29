@@ -77,7 +77,7 @@ rl.on('line', line => {
           sessionId,
           update: {
             sessionUpdate: 'agent_message_chunk',
-            content: { type: 'text', text: 'ALFRED online.' }
+            content: { type: 'text', text: permission.outcome.outcome === 'cancelled' ? 'PERMISSION_CANCELLED' : 'ALFRED online.' }
           }
         }
       });

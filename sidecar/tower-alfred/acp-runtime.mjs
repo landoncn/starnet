@@ -3,6 +3,7 @@ import { Readable, Writable } from 'node:stream';
 import * as acp from '@agentclientprotocol/sdk';
 
 const PROFILE_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+export const ACP_PERMISSION_CANCELLED = Symbol('tower-alfred.acp-permission-cancelled');
 
 export function hermesAcpArgs({ profile = 'default' } = {}) {
   const selected = String(profile == null ? '' : profile).trim();
@@ -14,6 +15,7 @@ export function hermesAcpArgs({ profile = 'default' } = {}) {
 }
 
 function permissionOutcome(request, optionId) {
+  if (optionId === ACP_PERMISSION_CANCELLED) return { outcome: { outcome: 'cancelled' } };
   const selected = String(optionId || 'deny');
   const allowed = (request.options || []).some(option => option.optionId === selected);
   if (!allowed) return { outcome: { outcome: 'cancelled' } };

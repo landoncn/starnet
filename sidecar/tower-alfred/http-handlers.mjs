@@ -31,6 +31,7 @@ export function createTowerAlfredHttpHandlers({ service, readBody }) {
       'X-Content-Type-Options': 'nosniff'
     });
     let runId = '';
+    let runErrorEmitted = false;
     let settled = false;
     let cancelIssued = false;
     const cancelDisconnected = () => {
@@ -48,11 +49,12 @@ export function createTowerAlfredHttpHandlers({ service, readBody }) {
     try {
       await service.run(body, event => {
         if (event && event.name === 'agent.run.start' && event.payload && event.payload.runId) runId = String(event.payload.runId);
+        if (event && event.name === 'agent.run.error') runErrorEmitted = true;
         if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
       });
     } catch (error) {
-      if (!res.destroyed && !res.writableEnded) {
-        res.write(`${JSON.stringify({ name: 'agent.run.error', payload: { message: error.message || String(error) } })}\n`);
+      if (!runErrorEmitted && !res.destroyed && !res.writableEnded) {
+        res.write(`${JSON.stringify({ name: 'agent.run.error', payload: { runId: runId || null, message: error.message || String(error) } })}\n`);
       }
     } finally {
       settled = true;

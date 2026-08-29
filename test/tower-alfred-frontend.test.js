@@ -14,6 +14,7 @@ const brandPos = index.indexOf('app/tower-alfred.js');
 const harnessPos = index.indexOf('app/harness.js');
 assert.ok(brandPos >= 0 && brandPos < harnessPos, 'Tower identity loads before the harness');
 assert.ok(harness.includes("const TOWER_MODE = !!window.__TOWER_ALFRED__"), 'harness has an explicit Tower mode');
+assert.ok(harness.includes("const getModel = () => TOWER_MODE ? 'hermes/' + String(window.__TOWER_ALFRED__.profile || 'default')"), 'Tower model metadata follows the server-attested Hermes profile');
 assert.ok(harness.includes("'/api/tower/run'"), 'Tower chat uses the Hermes ACP stream');
 assert.ok(harness.includes("'/api/tower/consent'"), 'Tower permissions use the ACP broker');
 assert.ok(harness.includes("'/api/tower/cancel'"), 'Tower cancellation reaches Hermes ACP');

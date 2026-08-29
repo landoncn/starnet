@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { createHermesAcpRuntime } from './acp-runtime.mjs';
+import { ACP_PERMISSION_CANCELLED, createHermesAcpRuntime } from './acp-runtime.mjs';
+
+export { ACP_PERMISSION_CANCELLED };
 
 const DECISION_KIND = {
   once: 'allow_once',
@@ -113,7 +115,7 @@ export function createTowerAlfredService(options = {}) {
         if (!active) return 'deny';
         const available = Array.isArray(request && request.options) ? request.options : [];
         const fallback = denyOption(available);
-        if (active.cancelling) return fallback ? fallback.optionId : 'deny';
+        if (active.cancelling) return ACP_PERMISSION_CANCELLED;
         const promptId = idFactory('permission');
         return new Promise(resolve => {
           const entry = {
@@ -236,8 +238,7 @@ export function createTowerAlfredService(options = {}) {
       }
       if (active) {
         for (const pending of Array.from(active.permissions)) {
-          const fallback = denyOption(pending.request.options || []);
-          settlePermission(pending, fallback ? fallback.optionId : 'deny');
+          settlePermission(pending, ACP_PERMISSION_CANCELLED);
         }
       }
       await conversation.runtime.cancel();
@@ -265,9 +266,11 @@ export function createTowerAlfredService(options = {}) {
   }
 
   async function stop() {
+    for (const conversation of conversations.values()) {
+      if (conversation.active) conversation.active.cancelling = true;
+    }
     for (const pending of Array.from(permissions.values())) {
-      const fallback = denyOption(pending.request.options || []);
-      settlePermission(pending, fallback ? fallback.optionId : 'deny');
+      settlePermission(pending, ACP_PERMISSION_CANCELLED);
     }
     await Promise.all(Array.from(conversations.values()).map(conversation => conversation.runtime.stop()));
     conversations.clear();

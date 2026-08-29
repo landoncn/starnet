@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createTowerAlfredService } from '../sidecar/tower-alfred/service.mjs';
+import { ACP_PERMISSION_CANCELLED, createTowerAlfredService } from '../sidecar/tower-alfred/service.mjs';
 
 let runtimeHandlers;
 let cancelled = false;
@@ -141,7 +141,7 @@ const concurrentService = createTowerAlfredService({
           ] })
         ]);
         const choices = await permissionOutcomes;
-        return { text: choices.join(','), stopReason: 'cancelled' };
+        return { text: choices.length ? 'cancelled' : '', stopReason: 'cancelled' };
       },
       async cancel() {},
       async stop() {}
@@ -161,7 +161,7 @@ for (const event of concurrentPrompts) {
     decision: event.payload.options[0].optionId
   }).ok, false, 'cancelled runs reject every stale concurrent permission response');
 }
-assert.deepEqual(await permissionOutcomes, ['deny-1', 'deny-2'], 'cancellation denies every concurrent ACP permission request');
+assert.deepEqual(await permissionOutcomes, [ACP_PERMISSION_CANCELLED, ACP_PERMISSION_CANCELLED], 'cancellation returns ACP Cancelled for every concurrent permission request');
 await concurrentRun;
 
 let racingHandlers;
@@ -190,7 +190,7 @@ const racingRun = racingService.run({ streamId: 'race', messages: [{ role: 'user
 await new Promise(resolve => setImmediate(resolve));
 await racingService.cancel({});
 assert.equal(racingEvents.filter(event => event.name === 'permission.prompt').length, 0, 'permissions created during cancellation are never offered to the UI');
-assert.equal(await latePermissionOutcome, 'late-deny', 'permissions racing with cancellation fail closed');
+assert.equal(await latePermissionOutcome, ACP_PERMISSION_CANCELLED, 'permissions racing with cancellation return ACP Cancelled');
 await racingRun;
 
 console.log('tower-alfred-service.test: OK');
