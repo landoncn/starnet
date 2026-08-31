@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "bcc856b996db3c08485bd965e689d664d2fc1698",
+    "sourceCommit": "3abaee73b84ba27cc035cf9a98c7762c0da58062",
     "pathSetSha256": "e6a9061db40a0dc1a4e915e6adf72a0d2833fd4318267c68aada5d6fbed6df44",
     "files": [
       {
@@ -808,8 +808,8 @@
       },
       {
         "path": "frontend/app/tower-studio.js",
-        "bytes": 11505,
-        "sha256": "6b6aea1dac293227407e7a178759fb6fe7552cfc0ce1c1ade7699a7521696885"
+        "bytes": 17383,
+        "sha256": "609e401444f1141fa1efbfed1eb2f8ad05f9b7b1a12a52aef487cf5cdd066f69"
       },
       {
         "path": "frontend/app/trophies.js",
@@ -1043,8 +1043,8 @@
       },
       {
         "path": "frontend/css/tower-alfred.css",
-        "bytes": 7969,
-        "sha256": "6ef73ac6d2f8bc04977f8148024991a7b1797d2a49008e1459733d423da0fb0e"
+        "bytes": 9447,
+        "sha256": "52468fa159cdb7e340f629f5dcb95d767f5012b5f7aa165f1ad996d2854157f9"
       },
       {
         "path": "frontend/css/tutorial.css",
