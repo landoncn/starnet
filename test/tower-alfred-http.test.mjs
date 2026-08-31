@@ -28,7 +28,8 @@ const service = {
   async readStudioArtifact(file) {
     calls.push(['artifact', file]);
     return { data: Buffer.from('RIFFtest'), mime: 'audio/wav', bytes: 8, path: file };
-  }
+  },
+  async saveStudioReview(body) { calls.push(['review', body]); return { artifactId: body.artifactId, decision: body.decision, feedback: body.feedback, updatedAt: 1234 }; }
 };
 const handlers = createTowerAlfredHttpHandlers({
   service,
@@ -57,6 +58,21 @@ assert.equal(artifactRes.headers['Content-Type'], 'audio/wav');
 assert.equal(artifactRes.headers['Content-Length'], '8');
 assert.deepEqual(artifactRes.body, Buffer.from('RIFFtest'));
 assert.deepEqual(calls.find(row => row[0] === 'artifact'), ['artifact', 'studio/artifacts/lake.wav']);
+
+const reviewRes = response();
+await handlers.studioReview({ body: JSON.stringify({ artifactId: 'lake', decision: 'approved', feedback: 'Good mix.' }) }, reviewRes);
+assert.equal(reviewRes.statusCode, 200);
+assert.deepEqual(JSON.parse(reviewRes.chunks.join('')), { ok: true, review: { artifactId: 'lake', decision: 'approved', feedback: 'Good mix.', updatedAt: 1234 } });
+assert.deepEqual(calls.find(row => row[0] === 'review'), ['review', { artifactId: 'lake', decision: 'approved', feedback: 'Good mix.' }]);
+
+const badReviewHandlers = createTowerAlfredHttpHandlers({
+  service: { async saveStudioReview() { throw new Error('/Users/private/reviews.json'); } },
+  async readBody(req) { return req.body; }
+});
+const badReviewRes = response();
+await badReviewHandlers.studioReview({ body: JSON.stringify({ artifactId: 'lake', decision: 'denied', feedback: '' }) }, badReviewRes);
+assert.equal(badReviewRes.statusCode, 400);
+assert.deepEqual(JSON.parse(badReviewRes.chunks.join('')), { ok: false, error: 'Artifact review was not saved' });
 
 const missingArtifactRes = response();
 await handlers.studioArtifact({ url: '/api/tower/studio/artifact' }, missingArtifactRes);

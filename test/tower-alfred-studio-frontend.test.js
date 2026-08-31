@@ -23,8 +23,8 @@ const state = {
     { profile: 'ahqa', name: 'WATCHWARDEN', role: 'QA', kind: 'qa', provisioned: true, state: 'idle', task: null }
   ],
   artifacts: [
-    { id: 'fish', title: 'Bluegill concept', preview: 'image', previewUrl: '/api/tower/studio/artifact?path=fish', status: 'candidate', creatorProfile: 'ahvisual', note: 'Sprite candidate.' },
-    { id: 'lake', title: 'Lake ambience', preview: 'audio', previewUrl: '/api/tower/studio/artifact?path=lake', status: 'sketch', creatorProfile: 'ahaudio', note: 'Loop sketch.' }
+    { id: 'fish', title: 'Bluegill concept', preview: 'image', previewUrl: '/api/tower/studio/artifact?path=fish', status: 'candidate', creatorProfile: 'ahvisual', note: 'Sprite candidate.', review: { decision: 'denied', feedback: '<replace this>', updatedAt: 1000 } },
+    { id: 'lake', title: 'Lake ambience', preview: 'audio', previewUrl: '/api/tower/studio/artifact?path=lake', status: 'sketch', creatorProfile: 'ahaudio', note: 'Loop sketch.', review: { decision: 'pending', feedback: '', updatedAt: null } }
   ]
 };
 assert.equal(shouldReplaceSnapshot(null, { ok: false }), true, 'an initial unavailable response is rendered honestly');
@@ -47,6 +47,13 @@ assert.match(html, /IMAGE PREVIEW/);
 assert.match(html, /AUDIO PREVIEW/);
 assert.match(html, /aria-label="Preview Bluegill concept image"/);
 assert.match(html, /aria-label="Preview Lake ambience audio"/);
+assert.match(html, /data-review-artifact="fish"/);
+assert.match(html, /data-review-decision="approved"/);
+assert.match(html, /data-review-decision="denied"/);
+assert.match(html, /Save feedback/);
+assert.match(html, /DENIED/);
+assert.match(html, /&lt;replace this&gt;/);
+assert.ok(!html.includes('<replace this>'), 'stored owner feedback is escaped');
 assert.ok(!html.includes('<img src='), 'untrusted artifacts are fetched into a blob only after an explicit preview action');
 assert.ok(!html.includes('<audio src='), 'untrusted audio is fetched into a blob only after an explicit preview action');
 
@@ -68,6 +75,8 @@ assert.match(unavailable, /manifest missing/);
 const source = fs.readFileSync(modulePath, 'utf8');
 const css = fs.readFileSync(path.join(root, 'frontend', 'css', 'tower-alfred.css'), 'utf8');
 assert.ok(source.includes("fetch('/api/tower/studio'"), 'live studio data comes from the Tower API');
+assert.ok(source.includes("fetch('/api/tower/studio/review'"), 'owner review decisions use the authenticated Tower API');
+assert.ok(source.includes('reviewDrafts'), 'unsaved owner feedback survives ordinary five-second status refreshes');
 assert.ok(source.includes('setTimeout(refresh, 5000)'), 'agent work status refreshes after the previous poll settles');
 assert.ok(!source.includes('setInterval('), 'polling cannot overlap through an unmanaged interval');
 assert.ok(source.includes('AbortController'), 'the active studio request has a cancellation owner');

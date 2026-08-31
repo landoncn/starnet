@@ -282,6 +282,11 @@ export function createTowerAlfredService(options = {}) {
     return studio.readArtifact(relativePath);
   }
 
+  async function saveStudioReview(review) {
+    if (!studio) throw new Error('Angler’s Hollow Studio is not configured');
+    return studio.saveReview(review);
+  }
+
   async function stop() {
     for (const conversation of conversations.values()) {
       if (conversation.active) conversation.active.cancelling = true;
@@ -294,5 +299,5 @@ export function createTowerAlfredService(options = {}) {
     runs.clear();
   }
 
-  return { run, resolvePermission, cancel, status, studioStatus, readStudioArtifact, stop };
+  return { run, resolvePermission, cancel, status, studioStatus, readStudioArtifact, saveStudioReview, stop };
 }

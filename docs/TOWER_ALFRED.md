@@ -146,14 +146,16 @@ Operational fields:
 - `server.port`: Tower origin and sidecar port; overridden by `--port`
 - `server.openBrowser`: whether launch opens the browser
 - `storage.workspaces`: Tower-specific StarNet state root, relative to the repository unless absolute
-- `studio.projectRoot`: absolute path to the authorized Angler's Hollow checkout; Tower reads only `studio/manifest.json`, `studio/artifacts.json`, and registered artifacts
+- `studio.projectRoot`: absolute path to the authorized Angler's Hollow checkout; Tower reads `studio/manifest.json`, `studio/artifacts.json`, optional owner decisions in `studio/artifact-reviews.jsonl`, and registered artifacts
 - `studio.kanbanBoard`: validated Hermes Kanban board slug used as the sole live work-status source
 
 ### Angler's Hollow Studio command center
 
-In attested Tower mode, the returning-user screen includes a read-only command panel. Its roster is the ordered set of durable Hermes profiles declared by the project's `studio/manifest.json`. Current assignments come directly from `hermes kanban --board <board> list --json`; profile existence without a task is shown as idle, and a failed board read is shown as unknown rather than fabricated activity.
+In attested Tower mode, the returning-user screen includes a studio command panel. Its roster is the ordered set of durable Hermes profiles declared by the project's `studio/manifest.json`. Current assignments come directly from `hermes kanban --board <board> list --json`; profile existence without a task is shown as idle, and a failed board read is shown as unknown rather than fabricated activity.
 
 The same panel lists project artifacts registered in `studio/artifacts.json`. Only allowlisted raster-image and audio formats are previewable. The sidecar rejects unregistered paths, traversal, symlinks, unsupported types, and files above the configured cap, then serves the selected file behind StarNet's existing local API-token gate. Browser previews use revocable blob URLs, so no project path or API credential is placed in an `<img>` or `<audio>` URL.
+
+Each registered visual or audio artifact also has owner-only `Approve`, `Deny`, and feedback controls. Each decision is durably appended as one bounded JSON line to the fixed project log `studio/artifact-reviews.jsonl`; a truncated crash-tail cannot erase earlier decisions and blocks later writes until repaired. Artifact files and registry metadata are never rewritten by a review action. Review IDs must already exist in the safe registry, decisions are restricted to `pending`, `approved`, or `denied`, feedback is bounded, and the mutation route remains behind the same Tower authentication and loopback/origin boundary.
 
 The permanent studio profiles are `ahtech`, `ahgameplay`, `ahbalance`, `ahnarrative`, `ahvisual`, `ahaudio`, and `ahqa`. ALFRED remains the sole integration authority in the `default` profile; Tower does not turn the specialist profiles into independent supervisors.
 
@@ -168,6 +170,7 @@ Tower routes are registered only when `TOWER_ALFRED=1`:
 - `GET /api/tower/status`
 - `GET /api/tower/studio`
 - `GET /api/tower/studio/artifact?path=<registered-relative-path>`
+- `POST /api/tower/studio/review`
 - `POST /api/tower/run`
 - `POST /api/tower/consent`
 - `POST /api/tower/cancel`

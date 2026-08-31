@@ -12,8 +12,11 @@ const STATE_PRIORITY = Object.freeze({ running: 0, review: 1, blocked: 2, ready:
 const MAX_MANIFEST_BYTES = 256 * 1024;
 const MAX_REGISTRY_BYTES = 1024 * 1024;
 const MAX_ARTIFACT_BYTES = 50 * 1024 * 1024;
+const MAX_REVIEWS_BYTES = 2 * 1024 * 1024;
 const MAX_AGENTS = 32;
 const MAX_ARTIFACTS = 1000;
+const REVIEW_DECISIONS = new Set(['pending', 'approved', 'denied']);
+const REVIEW_PATH = 'studio/artifact-reviews.jsonl';
 
 function cleanText(value, limit = 300) {
   return String(value == null ? '' : value).replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, limit);
@@ -139,7 +142,7 @@ export async function readBounded(handle, maxBytes) {
   return Buffer.concat(chunks, total);
 }
 
-async function openJailedFile(root, relative, maxBytes) {
+async function openJailedFile(root, relative, maxBytes, flags = fsConstants.O_RDONLY) {
   const resolvedRoot = await fs.realpath(root);
   const safe = safeRelativePath(relative);
   const candidate = path.resolve(resolvedRoot, safe);
@@ -147,7 +150,7 @@ async function openJailedFile(root, relative, maxBytes) {
   await assertNoSymlinkComponents(resolvedRoot, safe);
   const before = await fs.realpath(candidate);
   if (!insideRoot(resolvedRoot, before)) throw new Error('file outside studio project');
-  const handle = await fs.open(before, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  const handle = await fs.open(before, flags | fsConstants.O_NOFOLLOW);
   try {
     const stat = await handle.stat();
     if (!stat.isFile()) throw new Error('file is not regular');
@@ -187,6 +190,67 @@ async function readJson(root, relative, maxBytes) {
   return parsed;
 }
 
+function validateReviewRecord(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('artifact review is invalid');
+  if (typeof raw.artifactId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(raw.artifactId)) {
+    throw new Error('artifact review id is invalid');
+  }
+  if (typeof raw.decision !== 'string' || !REVIEW_DECISIONS.has(raw.decision)) {
+    throw new Error('artifact review decision is invalid');
+  }
+  const artifactId = raw.artifactId;
+  const decision = raw.decision;
+  if (typeof raw.feedback !== 'string' || raw.feedback.length > 2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(raw.feedback)) {
+    throw new Error('artifact review feedback is invalid');
+  }
+  if (raw.updatedAt != null && (typeof raw.updatedAt !== 'number' || !Number.isFinite(raw.updatedAt) || raw.updatedAt < 0)) {
+    throw new Error('artifact review timestamp is invalid');
+  }
+  return { artifactId, decision, feedback: raw.feedback, updatedAt: raw.updatedAt ?? null };
+}
+
+async function loadReviewDocument(root) {
+  let opened;
+  try { opened = await readJailedFile(root, REVIEW_PATH, MAX_REVIEWS_BYTES); }
+  catch (error) {
+    if (error && error.code === 'ENOENT') return { reviews: [], truncated: false };
+    throw error;
+  }
+  const text = opened.data.toString('utf8');
+  const complete = text.endsWith('\n') || text.length === 0;
+  const lines = text.split('\n');
+  const byId = new Map();
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line);
+      const review = validateReviewRecord(parsed);
+      byId.set(review.artifactId, review);
+    } catch (error) {
+      if (!complete && index === lines.length - 1) break;
+      throw new Error(`artifact review log is malformed: ${error.message}`);
+    }
+  }
+  const reviews = Array.from(byId.values()).sort((a, b) => a.artifactId.localeCompare(b.artifactId));
+  if (reviews.length > MAX_ARTIFACTS) throw new Error('artifact review log exceeds its record limit');
+  return { reviews, truncated: !complete };
+}
+
+async function appendReviewRecord(root, review) {
+  const data = Buffer.from(JSON.stringify(review) + '\n', 'utf8');
+  if (data.length > 4096) throw new Error('artifact review record exceeds size limit');
+  const opened = await openJailedFile(root, REVIEW_PATH, MAX_REVIEWS_BYTES, fsConstants.O_WRONLY | fsConstants.O_APPEND);
+  try {
+    if (opened.stat.size + data.length > MAX_REVIEWS_BYTES) throw new Error('artifact review store exceeds size limit');
+    const { bytesWritten } = await opened.handle.write(data, 0, data.length, null);
+    if (bytesWritten !== data.length) throw new Error('artifact review write was incomplete');
+    await opened.handle.sync();
+  } finally {
+    await opened.handle.close();
+  }
+}
+
 function parseJsonOutput(output, label) {
   try { return JSON.parse(String(output || '')); }
   catch (error) { throw new Error(`${label} returned invalid JSON: ${error.message}`); }
@@ -221,6 +285,7 @@ export function createTowerStudioService(options = {}) {
   let cachedStatus = null;
   let cachedAt = 0;
   let statusInFlight = null;
+  let reviewWrite = Promise.resolve();
 
   async function loadManifest() {
     const manifest = await readJson(root, 'studio/manifest.json', MAX_MANIFEST_BYTES);
@@ -323,6 +388,22 @@ export function createTowerStudioService(options = {}) {
       rejectedArtifacts = loaded.rejected;
       if (rejectedArtifacts) artifactSource = 'partial';
     } catch (_) { artifactSource = 'unavailable'; }
+    let reviews = new Map();
+    try {
+      const document = await loadReviewDocument(root);
+      reviews = new Map(document.reviews.map(review => [review.artifactId, review]));
+    } catch (_) {
+      artifactSource = artifactSource === 'unavailable' ? 'unavailable' : 'partial';
+    }
+    artifacts = artifacts.map(artifact => {
+      const stored = reviews.get(artifact.id);
+      return {
+        ...artifact,
+        review: stored
+          ? { decision: stored.decision, feedback: stored.feedback, updatedAt: stored.updatedAt }
+          : { decision: 'pending', feedback: '', updatedAt: null }
+      };
+    });
     return {
       ok: true,
       state: 'ready',
@@ -362,5 +443,27 @@ export function createTowerStudioService(options = {}) {
     return { data: file.data, mime: record.mime, bytes: file.data.length, path: relative };
   }
 
-  return { status, readArtifact };
+  async function saveReview(input) {
+    const requested = validateReviewRecord({
+      artifactId: input && input.artifactId,
+      decision: input && input.decision,
+      feedback: input && input.feedback,
+      updatedAt: now()
+    });
+    const operation = reviewWrite.catch(() => {}).then(async () => {
+      const manifest = await loadManifest();
+      const loaded = await loadArtifacts(manifest);
+      if (!loaded.artifacts.some(artifact => artifact.id === requested.artifactId)) throw new Error('artifact review target is unavailable');
+      const document = await loadReviewDocument(root);
+      if (document.truncated) throw new Error('artifact review log requires recovery before another write');
+      await appendReviewRecord(root, requested);
+      cachedStatus = null;
+      cachedAt = 0;
+      return requested;
+    });
+    reviewWrite = operation;
+    return operation;
+  }
+
+  return { status, readArtifact, saveReview };
 }

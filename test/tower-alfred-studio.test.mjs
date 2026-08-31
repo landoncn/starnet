@@ -6,6 +6,7 @@ import { createHermesKanbanAdapter, createTowerStudioService, readBounded } from
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tower-studio-test-'));
 await fs.mkdir(path.join(root, 'studio', 'artifacts'), { recursive: true });
+await fs.writeFile(path.join(root, 'studio', 'artifact-reviews.jsonl'), '');
 await fs.writeFile(path.join(root, 'studio', 'manifest.json'), JSON.stringify({
   schemaVersion: 1,
   studioId: 'anglers-hollow',
@@ -89,8 +90,47 @@ assert.equal(status.sources.artifacts, 'partial', 'a registry with rejected reco
 assert.equal(status.rejectedArtifacts, 10);
 assert.equal(status.artifacts[0].preview, 'image');
 assert.equal(status.artifacts[1].preview, 'audio');
+assert.deepEqual(status.artifacts[0].review, { decision: 'pending', feedback: '', updatedAt: null }, 'unreviewed artifacts expose an explicit pending owner decision');
 assert.match(status.artifacts[0].previewUrl, /^\/api\/tower\/studio\/artifact\?path=/);
 assert.ok(!JSON.stringify(status).includes(String(root)), 'the API never exposes the project absolute path');
+
+const approvedReview = await studio.saveReview({ artifactId: 'lake', decision: 'approved', feedback: 'Rain sits well under the bite cue.' });
+assert.deepEqual(approvedReview, { artifactId: 'lake', decision: 'approved', feedback: 'Rain sits well under the bite cue.', updatedAt: 1788022214000 });
+const reviewedStatus = await createTowerStudioService({ root, board: 'anglers-hollow', ...adapter, cacheMs: 0, now: () => 1788022215000 }).status();
+assert.deepEqual(reviewedStatus.artifacts.find(row => row.id === 'lake').review, {
+  decision: 'approved', feedback: 'Rain sits well under the bite cue.', updatedAt: 1788022214000
+}, 'owner reviews persist independently of the Tower process cache');
+await Promise.all([
+  studio.saveReview({ artifactId: 'fish', decision: 'denied', feedback: 'Replace the old sprite.' }),
+  studio.saveReview({ artifactId: 'lake', decision: 'approved', feedback: 'Keep this mix.' })
+]);
+const concurrentReviewLines = (await fs.readFile(path.join(root, 'studio', 'artifact-reviews.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
+assert.deepEqual(concurrentReviewLines.slice(-2).map(row => row.artifactId), ['fish', 'lake'], 'serialized concurrent review appends cannot lose an owner decision');
+const concurrentStatus = await createTowerStudioService({ root, board: 'anglers-hollow', ...adapter, cacheMs: 0 }).status();
+assert.equal(concurrentStatus.artifacts.find(row => row.id === 'fish').review.decision, 'denied');
+assert.equal(concurrentStatus.artifacts.find(row => row.id === 'lake').review.feedback, 'Keep this mix.');
+const completeReviewLog = await fs.readFile(path.join(root, 'studio', 'artifact-reviews.jsonl'), 'utf8');
+await fs.appendFile(path.join(root, 'studio', 'artifact-reviews.jsonl'), '{"artifactId":"fish"');
+const recoveredTailStatus = await createTowerStudioService({ root, board: 'anglers-hollow', ...adapter, cacheMs: 0 }).status();
+assert.equal(recoveredTailStatus.artifacts.find(row => row.id === 'fish').review.decision, 'denied', 'a truncated crash tail cannot erase the previous complete decision');
+await assert.rejects(() => studio.saveReview({ artifactId: 'fish', decision: 'approved', feedback: '' }), /recovery/i, 'a truncated crash tail blocks later writes instead of compounding corruption');
+await fs.writeFile(path.join(root, 'studio', 'artifact-reviews.jsonl'), completeReviewLog);
+await assert.rejects(() => studio.saveReview({ artifactId: 'missing', decision: 'approved', feedback: '' }), /artifact/i);
+await assert.rejects(() => studio.saveReview({ artifactId: 'fish', decision: 'maybe', feedback: '' }), /decision/i);
+await assert.rejects(() => studio.saveReview({ artifactId: ' fish', decision: 'approved', feedback: '' }), /id/i);
+await assert.rejects(() => studio.saveReview({ artifactId: 'fish', decision: 'APPROVED', feedback: '' }), /decision/i);
+await assert.rejects(() => studio.saveReview({ artifactId: 'fish', decision: 'denied', feedback: 'x'.repeat(2001) }), /feedback/i);
+await assert.rejects(() => studio.saveReview({ artifactId: 'fish', decision: 'denied', feedback: 'bad\u0000feedback' }), /feedback/i);
+const reviewPath = path.join(root, 'studio', 'artifact-reviews.jsonl');
+const savedReviewPath = path.join(root, 'studio', 'artifact-reviews.saved.jsonl');
+const outsideReviewPath = path.join(root, 'outside-review.jsonl');
+await fs.rename(reviewPath, savedReviewPath);
+await fs.writeFile(outsideReviewPath, 'outside stays unchanged\n');
+await fs.symlink(outsideReviewPath, reviewPath);
+await assert.rejects(() => studio.saveReview({ artifactId: 'fish', decision: 'approved', feedback: 'unsafe' }), /symlink|unsafe|changed/i);
+assert.equal(await fs.readFile(outsideReviewPath, 'utf8'), 'outside stays unchanged\n', 'a symlinked review target cannot mutate an outside file');
+await fs.rm(reviewPath);
+await fs.rename(savedReviewPath, reviewPath);
 
 const redirectedManifest = JSON.parse(await fs.readFile(path.join(root, 'studio', 'manifest.json'), 'utf8'));
 redirectedManifest.artifactIndex = 'studio/alternate-artifacts.json';

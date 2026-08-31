@@ -8403,6 +8403,10 @@ async function handleTowerAlfredStudioArtifact(req, res) {
   const handlers = await getTowerAlfredHandlers();
   return handlers ? handlers.studioArtifact(req, res) : towerAlfredUnavailable(res);
 }
+async function handleTowerAlfredStudioReview(req, res) {
+  const handlers = await getTowerAlfredHandlers();
+  return handlers ? handlers.studioReview(req, res) : towerAlfredUnavailable(res);
+}
 async function handleTowerAlfredRun(req, res) {
   const handlers = await getTowerAlfredHandlers();
   return handlers ? handlers.run(req, res) : towerAlfredUnavailable(res);
@@ -8420,6 +8424,7 @@ const ROUTES = [
   { m: 'GET', exact: '/api/tower/status', h: handleTowerAlfredStatus },
   { m: 'GET', exact: '/api/tower/studio', h: handleTowerAlfredStudio },
   { m: 'GET', qsplit: '/api/tower/studio/artifact', h: handleTowerAlfredStudioArtifact },
+  { m: 'POST', exact: '/api/tower/studio/review', h: handleTowerAlfredStudioReview },
   { m: 'POST', exact: '/api/tower/run', h: handleTowerAlfredRun },
   { m: 'POST', exact: '/api/tower/consent', h: handleTowerAlfredConsent },
   { m: 'POST', exact: '/api/tower/cancel', h: handleTowerAlfredCancel },

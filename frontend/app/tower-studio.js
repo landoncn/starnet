@@ -30,11 +30,20 @@
     const title = String(artifact && artifact.title || 'Untitled artifact');
     const id = String(artifact && artifact.id || '');
     const label = preview === 'audio' ? 'AUDIO PREVIEW' : 'IMAGE PREVIEW';
-    return '<article class="tower-studio-artifact"><div><b>' + esc(title) + '</b>' +
-      '<span class="tower-studio-artifact-meta">' + esc(artifact && artifact.status) + ' · ' + esc(artifact && artifact.creatorProfile) + '</span>' +
+    const review = artifact && artifact.review || {};
+    const decision = ['approved', 'denied'].includes(String(review.decision)) ? String(review.decision) : 'pending';
+    const feedback = String(review.feedback || '');
+    return '<article class="tower-studio-artifact review-' + esc(decision) + '"><div><b>' + esc(title) + '</b>' +
+      '<span class="tower-studio-artifact-meta">' + esc(artifact && artifact.status) + ' · ' + esc(artifact && artifact.creatorProfile) + ' · OWNER ' + esc(decision.toUpperCase()) + '</span>' +
       '<p>' + esc(artifact && artifact.note) + '</p></div>' +
       '<button type="button" class="tower-studio-preview-btn" data-artifact="' + esc(id) + '" aria-label="Preview ' + esc(title) + ' ' + preview + '">' + label + '</button>' +
-      '<div class="tower-studio-preview" data-artifact-preview="' + esc(id) + '" aria-live="polite"></div></article>';
+      '<div class="tower-studio-preview" data-artifact-preview="' + esc(id) + '" aria-live="polite"></div>' +
+      '<div class="tower-studio-review" data-review-artifact="' + esc(id) + '">' +
+      '<div class="tower-studio-review-actions"><button type="button" data-review-artifact="' + esc(id) + '" data-review-decision="approved" aria-pressed="' + String(decision === 'approved') + '">APPROVE</button>' +
+      '<button type="button" data-review-artifact="' + esc(id) + '" data-review-decision="denied" aria-pressed="' + String(decision === 'denied') + '">DENY</button></div>' +
+      '<label>Owner feedback<textarea maxlength="2000" data-review-feedback="' + esc(id) + '" placeholder="What should change, or what works well?">' + esc(feedback) + '</textarea></label>' +
+      '<button type="button" class="tower-studio-feedback-save" data-review-artifact="' + esc(id) + '" data-review-save="true">Save feedback</button>' +
+      '<p class="tower-studio-review-status" data-review-status="' + esc(id) + '" aria-live="polite"></p></div></article>';
   }
 
   function render(data) {
@@ -79,6 +88,7 @@
       let stopped = false;
       const previewControllers = new Set();
       const blobs = new Map();
+      const reviewDrafts = new Map();
       const revokeBlob = id => {
         const url = blobs.get(id);
         if (!url) return;
@@ -113,12 +123,39 @@
         const markup = render(data);
         if (body.innerHTML === markup) return;
         const activeArtifact = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-artifact');
+        const activeReview = document.activeElement && document.activeElement.getAttribute
+          ? {
+              id: document.activeElement.getAttribute('data-review-feedback') || document.activeElement.getAttribute('data-review-artifact'),
+              decision: document.activeElement.getAttribute('data-review-decision'),
+              save: document.activeElement.getAttribute('data-review-save'),
+              textarea: document.activeElement.matches && document.activeElement.matches('textarea[data-review-feedback]'),
+              start: typeof document.activeElement.selectionStart === 'number' ? document.activeElement.selectionStart : null,
+              end: typeof document.activeElement.selectionEnd === 'number' ? document.activeElement.selectionEnd : null
+            }
+          : null;
         const restorePreviews = preservePreviews();
         body.innerHTML = markup;
         restorePreviews();
+        for (const textarea of body.querySelectorAll('[data-review-feedback]')) {
+          const id = textarea.getAttribute('data-review-feedback');
+          if (reviewDrafts.has(id)) textarea.value = reviewDrafts.get(id);
+        }
         if (activeArtifact) {
           const replacement = body.querySelector('[data-artifact="' + CSS.escape(activeArtifact) + '"]');
           if (replacement) replacement.focus();
+        } else if (activeReview && activeReview.id) {
+          let selector = activeReview.textarea
+            ? 'textarea[data-review-feedback="' + CSS.escape(activeReview.id) + '"]'
+            : 'button[data-review-artifact="' + CSS.escape(activeReview.id) + '"]';
+          if (!activeReview.textarea && activeReview.decision) selector += '[data-review-decision="' + CSS.escape(activeReview.decision) + '"]';
+          if (!activeReview.textarea && activeReview.save) selector += '[data-review-save="true"]';
+          const replacement = body.querySelector(selector);
+          if (replacement) {
+            replacement.focus();
+            if (activeReview.textarea && activeReview.start != null) {
+              try { replacement.setSelectionRange(activeReview.start, activeReview.end); } catch (_) {}
+            }
+          }
         }
       };
       const showStaleWarning = () => {
@@ -138,13 +175,56 @@
         for (const controller of previewControllers) controller.abort();
         previewControllers.clear();
         clearBlobs();
+        reviewDrafts.clear();
       };
       toggle.addEventListener('click', () => {
         const open = panel.classList.toggle('collapsed') === false;
         toggle.setAttribute('aria-expanded', String(open));
         toggle.textContent = open ? 'STUDIO FLOOR ▾' : 'STUDIO FLOOR ▸';
       });
+      panel.addEventListener('input', event => {
+        const textarea = event.target.closest && event.target.closest('textarea[data-review-feedback]');
+        if (textarea) reviewDrafts.set(String(textarea.dataset.reviewFeedback || ''), textarea.value);
+      });
       panel.addEventListener('click', async event => {
+        const reviewButton = event.target.closest && event.target.closest('button[data-review-artifact]');
+        if (reviewButton && current) {
+          const id = String(reviewButton.dataset.reviewArtifact || '');
+          const artifact = Array.isArray(current.artifacts) ? current.artifacts.find(item => String(item && item.id || '') === id) : null;
+          const textarea = panel.querySelector('textarea[data-review-feedback="' + CSS.escape(id) + '"]');
+          const status = panel.querySelector('[data-review-status="' + CSS.escape(id) + '"]');
+          if (!artifact || !textarea || !status) return;
+          const existing = artifact.review || { decision: 'pending' };
+          const decision = reviewButton.dataset.reviewDecision || existing.decision || 'pending';
+          const buttons = Array.from(panel.querySelectorAll('button[data-review-artifact="' + CSS.escape(id) + '"]'));
+          for (const control of buttons) control.disabled = true;
+          status.textContent = 'Saving owner review…';
+          const controller = new AbortController();
+          previewControllers.add(controller);
+          try {
+            const response = await fetch('/api/tower/studio/review', {
+              method: 'POST', cache: 'no-store', signal: controller.signal,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ artifactId: id, decision, feedback: textarea.value })
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok || !payload.review) throw new Error(payload.error || ('HTTP ' + response.status));
+            reviewDrafts.delete(id);
+            current = {
+              ...current,
+              artifacts: current.artifacts.map(item => String(item && item.id || '') === id ? { ...item, review: payload.review } : item)
+            };
+            updateBody(current);
+            const saved = panel.querySelector('[data-review-status="' + CSS.escape(id) + '"]');
+            if (saved) saved.textContent = 'Owner review saved.';
+          } catch (error) {
+            if (error.name !== 'AbortError') status.textContent = 'Review not saved: ' + error.message;
+          } finally {
+            previewControllers.delete(controller);
+            for (const control of buttons) if (control.isConnected) control.disabled = false;
+          }
+          return;
+        }
         const button = event.target.closest && event.target.closest('button[data-artifact]');
         if (!button || !current) return;
         const id = String(button.dataset.artifact || '');

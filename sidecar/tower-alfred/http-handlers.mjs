@@ -46,6 +46,17 @@ export function createTowerAlfredHttpHandlers({ service, readBody }) {
     }
   }
 
+  async function studioReview(req, res) {
+    const body = await parseBody(req, res, readBody);
+    if (!body) return;
+    try {
+      const review = await service.saveStudioReview(body);
+      sendJson(res, 200, { ok: true, review });
+    } catch (_) {
+      sendJson(res, 400, { ok: false, error: 'Artifact review was not saved' });
+    }
+  }
+
   async function run(req, res) {
     const body = await parseBody(req, res, readBody);
     if (!body) return;
@@ -101,5 +112,5 @@ export function createTowerAlfredHttpHandlers({ service, readBody }) {
     sendJson(res, 200, await service.cancel(body));
   }
 
-  return { status, studio, studioArtifact, run, consent, cancel };
+  return { status, studio, studioArtifact, studioReview, run, consent, cancel };
 }
